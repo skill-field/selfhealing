@@ -58,6 +58,12 @@ app.add_middleware(
 API_PREFIX = "/api/v1"
 
 
+@app.get("/healthcheck")
+async def cml_health_check():
+    """CML health check endpoint."""
+    return {"status": "ok"}
+
+
 @app.get(f"{API_PREFIX}/health")
 async def health_check():
     """Health check endpoint."""

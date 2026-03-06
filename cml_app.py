@@ -23,10 +23,11 @@ if not os.path.exists(db_path):
 
 # Start the app
 port = int(os.environ.get("CDSW_APP_PORT", "8081"))
-print(f"[Sentinel] Starting on port {port}...", flush=True)
+print(f"[Sentinel] Starting on 127.0.0.1:{port}...", flush=True)
 
 # Import and run after deps are installed
 import uvicorn
 
-# Must use import string format so uvicorn can find the app
-uvicorn.run("app:app", host="0.0.0.0", port=port, log_level="info")
+# CML PBJ runtimes require binding to 127.0.0.1 (not 0.0.0.0)
+# PBJ's nginx proxy handles external traffic and forwards to localhost
+uvicorn.run("app:app", host="127.0.0.1", port=port, log_level="info")

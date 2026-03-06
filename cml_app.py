@@ -1,9 +1,9 @@
-"""CML Application entry point — robust startup with error handling."""
+"""CML Application entry point — runs uvicorn as subprocess to avoid PBJ event loop conflict."""
 import subprocess
 import sys
 import os
 import time
-import traceback
+import signal
 
 # Resolve project root (handles both app mode and workbench/Jupyter)
 try:
@@ -30,7 +30,6 @@ try:
              "--no-warn-script-location", "-r", "requirements.txt"],
             stdout=sys.stdout, stderr=sys.stderr
         )
-        import uvicorn
         print("[Sentinel] Dependencies installed.", flush=True)
 
     # Seed demo data if needed
@@ -39,12 +38,28 @@ try:
         print("[Sentinel] Seeding demo data...", flush=True)
         subprocess.run([sys.executable, "scripts/seed_demo_data.py"], check=False)
 
-    # Start the app — bind to 127.0.0.1 per Cloudera AMP convention
+    # Run uvicorn as a subprocess to avoid asyncio.run() conflict with PBJ's event loop
     print(f"[Sentinel] Launching uvicorn on 127.0.0.1:{port}", flush=True)
-    uvicorn.run("app:app", host="127.0.0.1", port=port, log_level="info")
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "app:app",
+         "--host", "127.0.0.1", "--port", str(port), "--log-level", "info"],
+        cwd=PROJECT_ROOT,
+        stdout=sys.stdout, stderr=sys.stderr
+    )
+
+    # Forward signals to child process
+    def handle_signal(signum, frame):
+        proc.send_signal(signum)
+
+    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, handle_signal)
+
+    # Wait for uvicorn to exit
+    proc.wait()
+    print(f"[Sentinel] uvicorn exited with code {proc.returncode}", flush=True)
 
 except Exception as e:
     print(f"[Sentinel] FATAL: {e}", flush=True)
+    import traceback
     print(traceback.format_exc(), flush=True)
-    # Keep process alive so CML logs are visible
     time.sleep(30)

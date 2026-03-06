@@ -1,0 +1,30 @@
+name: Skillfield Sentinel
+description: AI Self-Healing Software Platform
+author: Skillfield Pty Ltd
+specification_version: 1
+implementation_version: 1.0.0
+
+environment_variables:
+  ANTHROPIC_API_KEY:
+    default: ""
+    description: "Anthropic API key for Claude"
+    required: true
+  GITHUB_TOKEN:
+    default: ""
+    description: "GitHub PAT for repo access"
+    required: true
+  GITHUB_REPO:
+    default: "koshaji/metrics"
+    description: "Target GitHub repository"
+  METRICS_APP_URL:
+    default: "https://m8x.ai"
+    description: "Metrics app URL"
+  SENTINEL_SECRET:
+    default: ""
+    description: "Webhook HMAC secret"
+    required: true
+
+runtimes:
+  - editor: PBJ Workbench
+    kernel: Python 3.10
+    edition: Standard

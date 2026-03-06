@@ -29,4 +29,4 @@ print(f"[Sentinel] Starting on port {port}...", flush=True)
 import uvicorn
 
 # Must use import string format so uvicorn can find the app
-uvicorn.run("app:app", host="127.0.0.1", port=port, log_level="info")
+uvicorn.run("app:app", host="0.0.0.0", port=port, log_level="info")

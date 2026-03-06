@@ -5,9 +5,8 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # Ensure project root is on sys.path for imports
@@ -85,28 +84,19 @@ app.include_router(events_router, prefix=API_PREFIX)
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 
-@app.get("/{full_path:path}")
-async def serve_spa(request: Request, full_path: str):
-    """Serve static files or fall back to index.html for SPA routing."""
-    # Don't intercept API routes
-    if full_path.startswith("api/"):
-        return JSONResponse(status_code=404, content={"error": "not_found"})
+class SPAStaticFiles(StaticFiles):
+    """Serves static files with correct MIME types, falls back to index.html for SPA routes."""
 
-    # Try to serve the exact file from static dir (JS, CSS, images, etc.)
-    if full_path:
-        file_path = os.path.join(static_dir, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except Exception:
+            # File not found — serve index.html for SPA client-side routing
+            return await super().get_response("index.html", scope)
 
-    # Fall back to index.html for SPA routing
-    index_path = os.path.join(static_dir, "index.html")
-    if os.path.isfile(index_path):
-        return FileResponse(index_path)
 
-    return JSONResponse(
-        status_code=404,
-        content={"error": "Frontend not built. Place files in static/ directory."},
-    )
+if os.path.isdir(static_dir):
+    app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="spa")
 
 
 # ─── Entry Point ─────────────────────────────────────────────────────────────

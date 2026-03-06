@@ -81,7 +81,7 @@ function formatDate(ts?: string): string {
 }
 
 function getErrorMessage(err: AppError): string {
-  return err.error_message || err.message || err.raw_log || '(no message)';
+  return err.error_message || err.raw_log || '(no message)';
 }
 
 export function ThinkPage() {
@@ -399,7 +399,7 @@ function ErrorRow({
         </span>
 
         <span className="text-center font-mono text-xs text-gray-300">
-          {error.occurrence_count ?? error.occurrences ?? 1}
+          {error.occurrence_count ?? 1}
         </span>
 
         <span className="text-xs text-gray-400">
@@ -521,7 +521,7 @@ function ErrorDetailPanel({ error }: { error: AppError }) {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-gray-500">Occurrences</span>
-                <span className="font-mono text-gray-300">{error.occurrence_count ?? error.occurrences ?? 1}</span>
+                <span className="font-mono text-gray-300">{error.occurrence_count ?? 1}</span>
               </div>
             </div>
           </div>

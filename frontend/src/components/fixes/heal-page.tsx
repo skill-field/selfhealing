@@ -437,7 +437,7 @@ function FixRow({ fix, onClick }: { fix: Fix; onClick: () => void }) {
       </Badge>
 
       <span className="text-xs text-gray-400">
-        {formatDate(fix.created_at ?? fix.timestamp)}
+        {formatDate(fix.created_at)}
       </span>
 
       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -559,7 +559,7 @@ function FixDetailView({
             Attempt #{fix.attempt_number ?? 1}
           </span>
           <span className="text-xs text-gray-500">
-            {formatDate(fix.created_at ?? fix.timestamp)}
+            {formatDate(fix.created_at)}
           </span>
         </div>
       </div>
@@ -573,8 +573,8 @@ function FixDetailView({
           Code Changes
         </h3>
         <DiffViewer
-          diff={fix.diff ?? fix.code_diff ?? ''}
-          filesChanged={fix.files_changed}
+          diff={fix.diff ?? ''}
+          filesChanged={Array.isArray(fix.files_changed) ? fix.files_changed.join(', ') : fix.files_changed}
         />
       </div>
 
@@ -588,7 +588,7 @@ function FixDetailView({
             </div>
             <div className="rounded-md bg-gray-950/60 p-4">
               <p className="whitespace-pre-wrap text-xs leading-relaxed text-gray-300">
-                {fix.explanation ?? fix.description ?? '(No explanation available)'}
+                {fix.explanation ?? '(No explanation available)'}
               </p>
             </div>
 

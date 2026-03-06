@@ -98,11 +98,11 @@ export function DashboardPage() {
     }));
     const auditItems = auditEntries.map((e) => ({
       id: e.id,
-      timestamp: e.timestamp,
+      timestamp: e.created_at,
       action: e.action,
-      details: e.details,
-      module: e.module,
-      actor: e.actor,
+      details: typeof e.details === 'object' ? JSON.stringify(e.details) : String(e.details),
+      module: e.entity_type || 'system',
+      actor: e.actor || 'sentinel',
     }));
     const combined = [...sseItems, ...auditItems];
     combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -116,50 +116,32 @@ export function DashboardPage() {
     }
   }, [activityFeed]);
 
-  // Build timeline chart data
+  // Build timeline chart data from backend response
   const timelineData = useMemo(() => {
-    if (!timeline) return [];
-    return timeline.labels.map((label, i) => ({
-      time: label,
-      errors: timeline.errors[i] || 0,
-      fixes: timeline.fixes[i] || 0,
+    if (!timeline?.timeline) return [];
+    return timeline.timeline.map((entry) => ({
+      time: new Date(entry.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      errors: entry.errors,
+      fixes: entry.fixes,
     }));
   }, [timeline]);
 
-  // Build category chart data
+  // Build category chart data from summary
   const categoryData = useMemo(() => {
-    if (!summary) return [];
-    const recentActivity = summary.recent_activity || [];
-    // Try to derive category breakdown from summary data
-    // If there's a by_category field in any stats, use it; otherwise derive from recent_activity
-    const categories: Record<string, number> = {};
-    recentActivity.forEach((entry) => {
-      const mod = entry.module?.toLowerCase() || 'unknown';
-      categories[mod] = (categories[mod] || 0) + 1;
-    });
-    // If we have no data, show placeholder categories
-    if (Object.keys(categories).length === 0) {
-      return [
-        { name: 'database', value: 0 },
-        { name: 'api', value: 0 },
-        { name: 'auth', value: 0 },
-      ];
-    }
-    return Object.entries(categories).map(([name, value]) => ({ name, value }));
+    if (!summary?.errors_by_category) return [];
+    return Object.entries(summary.errors_by_category).map(([name, value]) => ({ name, value }));
   }, [summary]);
 
-  // Pipeline flow counts from module_status
+  // Pipeline flow counts
   const pipelineCounts = useMemo(() => {
-    if (!summary?.module_status) {
-      return { WATCH: 0, THINK: 0, HEAL: 0, VERIFY: 0, EVOLVE: 0 };
-    }
-    const ms = summary.module_status;
+    if (!summary) return { WATCH: 0, THINK: 0, HEAL: 0, VERIFY: 0, EVOLVE: 0 };
+    const byStatus = summary.errors_by_status || {};
     return {
-      WATCH: typeof ms.WATCH === 'string' ? 0 : Number(ms.WATCH) || 0,
-      THINK: typeof ms.THINK === 'string' ? 0 : Number(ms.THINK) || 0,
-      HEAL: typeof ms.HEAL === 'string' ? 0 : Number(ms.HEAL) || 0,
-      VERIFY: typeof ms.VERIFY === 'string' ? 0 : Number(ms.VERIFY) || 0,
-      EVOLVE: typeof ms.EVOLVE === 'string' ? 0 : Number(ms.EVOLVE) || 0,
+      WATCH: summary.total_errors,
+      THINK: (byStatus['acknowledged'] || 0) + (byStatus['fix_generated'] || 0),
+      HEAL: summary.fixes_generated,
+      VERIFY: summary.total_deployments,
+      EVOLVE: summary.total_features,
     };
   }, [summary]);
 
@@ -167,19 +149,19 @@ export function DashboardPage() {
   const fixesGenerated = summary?.fixes_generated ?? 0;
   const fixesDeployed = summary?.fixes_deployed ?? 0;
   const successRate = summary?.success_rate ?? 0;
-  const mttr = fixesDeployed > 0 ? Math.round((successRate / 100) * 240) : 0; // estimated MTTR
+  const mttrMinutes = summary?.mttr_minutes ?? 0;
 
-  // Severity breakdown bar widths
+  // Severity breakdown bar widths from actual data
   const severityBreakdown = useMemo(() => {
-    if (!totalErrors) return [];
-    // Generate proportional breakdown
+    if (!summary?.errors_by_severity || !totalErrors) return [];
+    const sev = summary.errors_by_severity;
     return [
-      { key: 'critical', pct: 25, color: SEVERITY_COLORS.critical },
-      { key: 'high', pct: 30, color: SEVERITY_COLORS.high },
-      { key: 'medium', pct: 30, color: SEVERITY_COLORS.medium },
-      { key: 'low', pct: 15, color: SEVERITY_COLORS.low },
+      { key: 'critical', pct: Math.round(((sev.critical || 0) / totalErrors) * 100), color: SEVERITY_COLORS.critical },
+      { key: 'high', pct: Math.round(((sev.high || 0) / totalErrors) * 100), color: SEVERITY_COLORS.high },
+      { key: 'medium', pct: Math.round(((sev.medium || 0) / totalErrors) * 100), color: SEVERITY_COLORS.medium },
+      { key: 'low', pct: Math.round(((sev.low || 0) / totalErrors) * 100), color: SEVERITY_COLORS.low },
     ];
-  }, [totalErrors]);
+  }, [summary, totalErrors]);
 
   if (loading) {
     return (
@@ -235,7 +217,7 @@ export function DashboardPage() {
           </div>
           <div className="mt-2">
             <span className="text-xs text-gray-500">
-              {successRate > 0 ? `${successRate}% success rate` : 'No data yet'}
+              {successRate > 0 ? `${Math.round(successRate * 100)}% success rate` : 'No data yet'}
             </span>
           </div>
         </Card>
@@ -265,7 +247,7 @@ export function DashboardPage() {
             <div className="flex-1">
               <p className="text-xs text-gray-400">MTTR</p>
               <p className="text-2xl font-bold">
-                {mttr > 0 ? `${mttr}m` : '--'}
+                {mttrMinutes > 0 ? `${Math.round(mttrMinutes)}m` : '--'}
               </p>
             </div>
           </div>
@@ -456,7 +438,8 @@ export function DashboardPage() {
           { name: 'GitHub API', key: 'github_api' },
           { name: 'Claude API', key: 'claude_api' },
         ].map((service) => {
-          const isConnected = connected; // derive from SSE connection as proxy
+          const health = summary?.system_health?.[service.key];
+          const isConnected = health === 'connected' || connected;
           return (
             <div key={service.key} className="flex items-center gap-2">
               <div
@@ -472,7 +455,7 @@ export function DashboardPage() {
           );
         })}
         <div className="ml-auto flex items-center gap-2">
-          <Badge variant="info">v0.1.0</Badge>
+          <Badge variant="info">v1.0.0</Badge>
           <span className="text-xs text-gray-500">Skillfield Sentinel</span>
         </div>
       </div>

@@ -17,7 +17,7 @@ export function useAuditLog(): UseAuditLogReturn {
   const fetchData = useCallback(async () => {
     try {
       const data = await getAuditLog();
-      setEntries(Array.isArray(data) ? data : []);
+      setEntries(data.entries || []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch audit log');

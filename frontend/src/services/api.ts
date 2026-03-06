@@ -78,7 +78,7 @@ export const regenerateFix = (id: string, guidance: string) =>
 
 // Deployments (VERIFY)
 export const getDeployments = () =>
-  request<Deployment[] | { deployments: Deployment[]; total: number }>('/deployments');
+  request<{ deployments: Deployment[]; total: number }>('/deployments');
 export const getDeployment = (id: string) => request<Deployment>(`/deployments/${id}`);
 export const deployToStaging = (fixId: string) =>
   request<Deployment>(`/fixes/${fixId}/deploy-staging`, { method: 'POST' });
@@ -88,7 +88,7 @@ export const promoteDeployment = (deploymentId: string) =>
 // Features (EVOLVE)
 export const getFeatures = (filters?: Record<string, string>) => {
   const qs = filters ? '?' + new URLSearchParams(filters).toString() : '';
-  return request<FeatureRequest[] | { features: FeatureRequest[]; total: number }>(`/features${qs}`);
+  return request<{ features: FeatureRequest[]; total: number }>(`/features${qs}`);
 };
 export const getFeature = (id: string) => request<FeatureRequest>(`/features/${id}`);
 export const createFeature = (title: string, description: string, priority: string) =>
@@ -114,4 +114,7 @@ export const getDashboardSummary = () => request<DashboardSummary>('/dashboard/s
 export const getDashboardTimeline = () => request<DashboardTimeline>('/dashboard/timeline');
 
 // Audit
-export const getAuditLog = () => request<AuditEntry[]>('/audit');
+export const getAuditLog = (params?: Record<string, string>) => {
+  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+  return request<{ entries: AuditEntry[]; total: number; page: number; page_size: number }>(`/audit-log${qs}`);
+};

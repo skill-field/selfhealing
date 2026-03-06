@@ -192,10 +192,10 @@ function DeploymentCard({
                 <Clock size={12} />
                 Created: {formatTimestamp(deployment.created_at)}
               </span>
-              {deployment.promoted_at && (
+              {deployment.status === 'promoted' && (
                 <span className="flex items-center gap-1">
                   <Globe size={12} />
-                  Promoted: {formatTimestamp(deployment.promoted_at)}
+                  Promoted: {formatTimestamp(deployment.updated_at)}
                 </span>
               )}
             </div>

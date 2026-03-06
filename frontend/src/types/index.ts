@@ -36,11 +36,6 @@ export interface Error {
   status: string;
   created_at: string;
   updated_at: string;
-  // Legacy fields for compatibility
-  timestamp?: string;
-  message?: string;
-  classification?: string;
-  occurrences?: number;
 }
 
 export interface ErrorStats {
@@ -50,10 +45,6 @@ export interface ErrorStats {
   by_status: Record<string, number>;
   new_last_24h: number;
   resolved_last_24h: number;
-  // Legacy fields
-  total?: number;
-  by_source?: Record<string, number>;
-  trend?: Array<{ date: string; count: number }>;
 }
 
 export interface Fix {
@@ -61,7 +52,7 @@ export interface Fix {
   error_id: string;
   diff: string;
   explanation: string;
-  files_changed: string | null;
+  files_changed: string | string[] | null;
   confidence: number | null;
   model_used: string;
   prompt_tokens: number | null;
@@ -72,12 +63,6 @@ export interface Fix {
   guidance: string | null;
   created_at: string;
   updated_at: string;
-  // Legacy fields for compatibility
-  timestamp?: string;
-  description?: string;
-  code_diff?: string;
-  approved_by?: string;
-  deployed_at?: string;
 }
 
 export interface Deployment {
@@ -85,15 +70,11 @@ export interface Deployment {
   fix_id: string;
   environment: string;
   status: string;
-  test_results: string | null;
+  test_results: Array<{ name: string; status: string; duration_ms: number }> | null;
   pr_url: string | null;
   commit_sha: string | null;
   created_at: string;
   updated_at: string;
-  // Legacy fields for compatibility
-  timestamp?: string;
-  promoted_at?: string;
-  rolled_back_at?: string;
 }
 
 export interface FeatureRequest {
@@ -101,7 +82,7 @@ export interface FeatureRequest {
   title: string;
   description: string;
   priority: string;
-  generated_code: string | null;
+  generated_code: Record<string, unknown> | string | null;
   generated_diff: string | null;
   explanation: string | null;
   model_used: string | null;
@@ -110,35 +91,49 @@ export interface FeatureRequest {
   pr_url: string | null;
   created_at: string;
   updated_at: string;
-  // Legacy fields for compatibility
-  timestamp?: string;
-  generated_spec?: string;
-  approved_by?: string;
 }
 
 export interface AuditEntry {
   id: string;
-  timestamp: string;
-  module: string;
   action: string;
-  details: string;
-  actor: string;
+  entity_type?: string;
+  entity_id?: string;
+  details: Record<string, unknown> | string;
+  actor?: string;
+  created_at: string;
 }
 
 export interface DashboardSummary {
   total_errors: number;
+  open_errors: number;
   fixes_generated: number;
   fixes_deployed: number;
+  features_submitted: number;
   success_rate: number;
-  module_status: Record<string, string>;
-  recent_activity: AuditEntry[];
+  error_stats: ErrorStats;
+  recent_errors: Error[];
+  recent_fixes: Fix[];
+  errors_by_severity: Record<string, number>;
+  errors_by_category: Record<string, number>;
+  errors_by_status: Record<string, number>;
+  total_fixes: number;
+  fixes_by_status: Record<string, number>;
+  total_deployments: number;
+  total_features: number;
+  mttr_minutes: number;
+  system_health: Record<string, string>;
+}
+
+export interface TimelineEntry {
+  hour: string;
+  errors: number;
+  fixes: number;
+  deployments: number;
 }
 
 export interface DashboardTimeline {
-  labels: string[];
-  errors: number[];
-  fixes: number[];
-  deployments: number[];
+  timeline: TimelineEntry[];
+  hours: number;
 }
 
 export interface SystemConfig {

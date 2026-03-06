@@ -45,16 +45,16 @@ export function AuditPage() {
   const filteredEntries = entries.filter((entry) => {
     if (filter === 'all') return true;
     const action = entry.action.toLowerCase();
-    const module = entry.module.toLowerCase();
+    const entityType = (entry.entity_type || '').toLowerCase();
     switch (filter) {
       case 'error':
-        return action.includes('error') || module.includes('watch') || module.includes('think');
+        return action.includes('error') || entityType.includes('error');
       case 'fix':
-        return action.includes('fix') || module.includes('heal');
+        return action.includes('fix') || entityType.includes('fix');
       case 'deployment':
-        return action.includes('deploy') || module.includes('verify');
+        return action.includes('deploy') || entityType.includes('deployment');
       case 'feature':
-        return action.includes('feature') || module.includes('evolve');
+        return action.includes('feature') || entityType.includes('feature');
       default:
         return true;
     }
@@ -128,7 +128,7 @@ export function AuditPage() {
                   Action
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  Module
+                  Entity
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                   ID
@@ -147,15 +147,10 @@ export function AuditPage() {
                   const Icon = getActionIcon(entry.action);
                   const variant = getActionBadgeVariant(entry.action);
                   const isExpanded = expandedRow === entry.id;
-                  let parsedDetails: Record<string, unknown> | null = null;
-                  try {
-                    const parsed = JSON.parse(entry.details);
-                    if (typeof parsed === 'object' && parsed !== null) {
-                      parsedDetails = parsed as Record<string, unknown>;
-                    }
-                  } catch {
-                    parsedDetails = null;
-                  }
+                  const detailsStr = typeof entry.details === 'object'
+                    ? JSON.stringify(entry.details)
+                    : String(entry.details || '');
+                  const detailsObj = typeof entry.details === 'object' ? entry.details : null;
 
                   return (
                     <tr
@@ -164,7 +159,7 @@ export function AuditPage() {
                       onClick={() => setExpandedRow(isExpanded ? null : entry.id)}
                     >
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-gray-300">
-                        {new Date(entry.timestamp).toLocaleString()}
+                        {new Date(entry.created_at).toLocaleString()}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -173,12 +168,12 @@ export function AuditPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant="default">{entry.module}</Badge>
+                        <Badge variant="default">{entry.entity_type || 'system'}</Badge>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-400">
-                        {entry.id.slice(0, 8)}...
+                        {entry.entity_id ? `${entry.entity_id.slice(0, 8)}...` : '--'}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-300">{entry.actor}</td>
+                      <td className="px-4 py-3 text-xs text-gray-300">{entry.actor || 'sentinel'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           {isExpanded ? (
@@ -188,16 +183,16 @@ export function AuditPage() {
                           )}
                           {!isExpanded && (
                             <span className="max-w-xs truncate text-xs text-gray-400">
-                              {entry.details}
+                              {detailsStr}
                             </span>
                           )}
-                          {isExpanded && parsedDetails && (
+                          {isExpanded && detailsObj && (
                             <pre className="mt-1 max-w-md overflow-x-auto rounded bg-gray-950 p-2 text-xs text-gray-300">
-                              {JSON.stringify(parsedDetails, null, 2)}
+                              {JSON.stringify(detailsObj, null, 2)}
                             </pre>
                           )}
-                          {isExpanded && !parsedDetails && (
-                            <span className="text-xs text-gray-400">{entry.details}</span>
+                          {isExpanded && !detailsObj && (
+                            <span className="text-xs text-gray-400">{detailsStr}</span>
                           )}
                         </div>
                       </td>

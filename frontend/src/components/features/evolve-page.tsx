@@ -319,7 +319,9 @@ function FeatureCard({
               </h5>
               <div className="rounded-lg border border-gray-800 bg-[#1a1a2e] p-4 overflow-x-auto">
                 <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
-                  {feature.generated_code}
+                  {typeof feature.generated_code === 'object'
+                    ? JSON.stringify(feature.generated_code, null, 2)
+                    : feature.generated_code}
                 </pre>
               </div>
             </div>

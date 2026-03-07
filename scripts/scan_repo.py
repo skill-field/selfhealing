@@ -117,7 +117,7 @@ async def scan_single_repo(repo_row: dict, llm: AnthropicClient) -> dict:
                 user_prompt=SCAN_PROMPT.format(
                     repo_slug=repo_slug, file_path=file_path, content=content
                 ),
-                model="claude-sonnet-4-6",
+                model="claude-sonnet-4-5",
             )
         except Exception as e:
             print(f"    -> LLM error: {e}", flush=True)

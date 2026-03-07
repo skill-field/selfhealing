@@ -224,7 +224,7 @@ async def init_db() -> None:
             ("min_confidence_threshold", json.dumps(0.7), "Minimum confidence score to auto-approve fixes", now),
             ("watched_severities", json.dumps(["critical", "high"]), "Severities that trigger automatic fix generation", now),
             ("target_environments", json.dumps(["staging", "production"]), "Environments to monitor", now),
-            ("model_preference", json.dumps("claude-sonnet-4-6"), "Preferred Claude model for fix generation", now),
+            ("model_preference", json.dumps("claude-sonnet-4-5"), "Preferred Claude model for fix generation", now),
             ("github_repo", json.dumps(settings.GITHUB_REPO), "Target GitHub repository", now),
         ]
         for key, value, description, updated_at in defaults:

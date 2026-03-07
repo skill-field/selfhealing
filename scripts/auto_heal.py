@@ -97,7 +97,7 @@ async def auto_heal():
             rca_result = await llm.generate_json(
                 system_prompt="You are a senior software engineer performing root cause analysis. Respond only with valid JSON.",
                 user_prompt=rca_prompt,
-                model="claude-sonnet-4-6",
+                model="claude-sonnet-4-5",
             )
 
             rca_data = rca_result.get("data", {})
@@ -136,7 +136,7 @@ async def auto_heal():
             fix_result = await llm.generate_json(
                 system_prompt="You are a senior software engineer generating production-ready fixes. Respond only with valid JSON.",
                 user_prompt=fix_prompt,
-                model="claude-sonnet-4-6",
+                model="claude-sonnet-4-5",
             )
 
             fix_data = fix_result.get("data", {})

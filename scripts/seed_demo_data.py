@@ -323,7 +323,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/prisma.ts\n+++ b/src/lib/prisma.ts\n@@ -8,7 +8,12 @@\n const prisma = new PrismaClient({\n-  datasources: { db: { url: process.env.DATABASE_URL } },\n+  datasources: { db: { url: process.env.DATABASE_URL } },\n+  // Increase pool size and add timeout handling\n+  connection_limit: 20,\n+  pool_timeout: 10,\n+  connect_timeout: 10,\n });\n+\n+// Add connection pool monitoring\n+prisma.$on('query', (e) => {\n+  if (e.duration > 2000) logger.warn(`Slow query: ${e.query} (${e.duration}ms)`);\n+});",
         "explanation": "The connection pool was set to the default size of 5, which is insufficient under load. Increased to 20 connections with explicit timeout handling and added slow query monitoring.",
         "confidence": 0.91,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "approved",
     },
     {
@@ -331,7 +331,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/prisma/schema.prisma\n+++ b/prisma/schema.prisma\n@@ -45,6 +45,8 @@\n model Metric {\n   id          String   @id @default(cuid())\n   name        String\n+  formula     String?  @db.Text\n+  formulaType String?  @map(\"formula_type\")\n   scorecardId String   @map(\"scorecard_id\")\n   scorecard   Scorecard @relation(fields: [scorecardId], references: [id])\n   @@unique([scorecardId, name])\n }",
         "explanation": "The schema.prisma file was missing the formula and formulaType columns that were added in a migration. Synced the schema to match the actual database state.",
         "confidence": 0.88,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "deployed",
     },
     {
@@ -339,7 +339,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/services/metric/metric-value.service.ts\n+++ b/src/lib/services/metric/metric-value.service.ts\n@@ -110,8 +110,14 @@\n   async batchInsert(ctx: ServiceContext, values: MetricValueInput[]) {\n-    await Promise.all(\n-      values.map(v => this.prisma.metricValue.create({ data: v }))\n-    );\n+    // Process in sequential batches of 50 to avoid deadlocks\n+    const BATCH_SIZE = 50;\n+    for (let i = 0; i < values.length; i += BATCH_SIZE) {\n+      const batch = values.slice(i, i + BATCH_SIZE);\n+      await this.prisma.$transaction(\n+        batch.map(v => this.prisma.metricValue.create({ data: v })),\n+        { isolationLevel: 'Serializable' }\n+      );\n+    }",
         "explanation": "Replaced parallel Promise.all with sequential batched transactions using Serializable isolation to prevent deadlocks during concurrent metric value inserts.",
         "confidence": 0.94,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "approved",
     },
     {
@@ -347,7 +347,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/auth/session.ts\n+++ b/src/lib/auth/session.ts\n@@ -32,6 +32,12 @@\n   const token = request.headers.get('authorization')?.replace('Bearer ', '');\n-  const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!);\n+  try {\n+    const decoded = jwt.verify(token, process.env.NEXTAUTH_SECRET!);\n+    return decoded;\n+  } catch (error) {\n+    if (error.name === 'TokenExpiredError') {\n+      // Attempt silent refresh using refresh token\n+      return await refreshSession(request);\n+    }\n+    throw new AuthError('Invalid session');\n+  }",
         "explanation": "Added automatic silent session refresh when JWT expires, instead of immediately failing. Uses the refresh token stored in the HTTP-only cookie.",
         "confidence": 0.89,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "deployed",
     },
     {
@@ -355,7 +355,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/app/api/auth/[...nextauth]/route.ts\n+++ b/src/app/api/auth/[...nextauth]/route.ts\n@@ -43,7 +43,12 @@\n   callbacks: {\n     async signIn({ account }) {\n-      if (account?.state !== cookies.get('oauth_state')) throw new Error('State mismatch');\n+      const cookieState = cookies.get('oauth_state')?.value;\n+      const paramState = account?.state;\n+      if (!cookieState || !paramState || cookieState !== paramState) {\n+        logger.warn('OAuth state mismatch', { cookieState: !!cookieState, paramState: !!paramState });\n+        return '/auth/error?error=OAuthStateMismatch';\n+      }\n       return true;\n     },\n   }",
         "explanation": "Fixed OAuth state validation to properly extract cookie value and handle missing states gracefully. Now redirects to error page instead of throwing.",
         "confidence": 0.87,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "pending",
     },
     {
@@ -363,7 +363,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/auth/tenant-guard.ts\n+++ b/src/lib/auth/tenant-guard.ts\n@@ -26,8 +26,15 @@\n   async validate(userId: string, resourceOrgId: string) {\n-    const user = await this.getUser(userId);\n-    if (user.orgId !== resourceOrgId) throw new TenantIsolationError(...);\n+    const user = await this.getUser(userId);\n+    if (user.orgId !== resourceOrgId) {\n+      // Log security event before throwing\n+      await this.auditService.logSecurityEvent({\n+        type: 'tenant_isolation_violation',\n+        userId,\n+        attemptedOrgId: resourceOrgId,\n+        actualOrgId: user.orgId,\n+        severity: 'critical',\n+      });\n+      throw new TenantIsolationError(`User ${userId} (org: ${user.orgId}) attempted access to org: ${resourceOrgId}`);\n+    }",
         "explanation": "Added security audit logging before throwing the tenant isolation error. This ensures cross-org access attempts are tracked for security review.",
         "confidence": 0.95,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "approved",
     },
     {
@@ -371,7 +371,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/services/metric/metric.service.ts\n+++ b/src/lib/services/metric/metric.service.ts\n@@ -243,7 +243,12 @@\n   async calculateFormula(ctx: ServiceContext, metricId: string) {\n-    const formula = await this.getFormula(ctx, metricId);\n-    return eval(formula.expression);\n+    const formula = await this.getFormula(ctx, metricId);\n+    try {\n+      const result = this.safeEvaluate(formula.expression, ctx);\n+      return result;\n+    } catch (error) {\n+      throw ServiceError.validation(`Invalid formula expression: ${formula.expression}`);\n+    }",
         "explanation": "The formula calculation was using unsafe eval() which throws on malformed expressions. Replaced with a safe evaluator that validates the expression first and throws a proper ServiceError on failure.",
         "confidence": 0.92,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "deployed",
     },
     {
@@ -379,7 +379,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/schemas/metric.schema.ts\n+++ b/src/lib/schemas/metric.schema.ts\n@@ -32,7 +32,9 @@\n export const MetricSchema = z.object({\n   name: z.string().min(1).max(100),\n-  target: z.number(),\n+  target: z.union([\n+    z.number(),\n+    z.string().transform((val) => {\n+      const num = Number(val);\n+      if (isNaN(num)) throw new Error('target must be a valid number');\n+      return num;\n+    }),\n+  ]),\n   unit: z.string().optional(),\n });",
         "explanation": "Added a union type that accepts both numbers and numeric strings for the 'target' field, with automatic string-to-number coercion. This handles form submissions that send numbers as strings.",
         "confidence": 0.96,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "deployed",
     },
     {
@@ -387,7 +387,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/services/notification/slack.service.ts\n+++ b/src/lib/services/notification/slack.service.ts\n@@ -54,7 +54,16 @@\n   async postMessage(channel: string, text: string) {\n-    const response = await this.client.chat.postMessage({ channel, text });\n+    try {\n+      const response = await this.client.chat.postMessage({ channel, text });\n+      return response;\n+    } catch (error) {\n+      if (error.data?.error === 'channel_not_found') {\n+        // Attempt to find channel by name lookup\n+        const channels = await this.client.conversations.list({ types: 'public_channel,private_channel' });\n+        const match = channels.channels?.find(c => c.name === channel.replace('#', ''));\n+        if (match) return await this.client.chat.postMessage({ channel: match.id, text });\n+      }\n+      throw error;\n+    }",
         "explanation": "Added fallback logic: when a channel name lookup fails, the service now queries the Slack API for a matching channel by name and retries with the channel ID.",
         "confidence": 0.85,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "pending",
     },
     {
@@ -395,7 +395,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/ai-provider.ts\n+++ b/src/lib/ai-provider.ts\n@@ -87,8 +87,18 @@\n   async generate(prompt: string) {\n-    if (this.circuitBreaker.isOpen) throw new CircuitBreakerError('Circuit is open');\n+    if (this.circuitBreaker.isOpen) {\n+      // Check if half-open period has elapsed\n+      if (this.circuitBreaker.canRetry()) {\n+        this.circuitBreaker.halfOpen();\n+      } else {\n+        // Fallback to secondary provider\n+        return this.fallbackProvider.generate(prompt);\n+      }\n+    }\n+    try {\n+      const result = await this.primaryProvider.generate(prompt);\n+      this.circuitBreaker.success();\n+      return result;\n+    } catch (error) {\n+      this.circuitBreaker.failure();\n+      return this.fallbackProvider.generate(prompt);\n+    }",
         "explanation": "Implemented proper circuit breaker half-open state with automatic fallback to secondary AI provider instead of immediately throwing. The circuit resets after a configurable cooldown period.",
         "confidence": 0.90,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "approved",
     },
     {
@@ -403,7 +403,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/docker/Dockerfile\n+++ b/docker/Dockerfile\n@@ -18,6 +18,8 @@\n-CMD [\"node\", \"server.js\"]\n+# Increase memory limit and add heap monitoring\n+ENV NODE_OPTIONS=\"--max-old-space-size=450 --expose-gc\"\n+HEALTHCHECK --interval=30s --timeout=5s CMD curl -f http://localhost:3000/api/v1/health || exit 1\n+CMD [\"node\", \"--max-old-space-size=450\", \"server.js\"]",
         "explanation": "Set explicit Node.js heap limit to 450MB (under the 512Mi container limit) to enable graceful GC instead of OOMKill. Added container healthcheck.",
         "confidence": 0.88,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "approved",
     },
     {
@@ -411,7 +411,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/queue/worker.ts\n+++ b/src/lib/queue/worker.ts\n@@ -26,7 +26,15 @@\n   constructor(queueName: string) {\n-    this.connection = new Redis(process.env.REDIS_URL);\n+    this.connection = new Redis(process.env.REDIS_URL, {\n+      maxRetriesPerRequest: 3,\n+      retryStrategy(times) {\n+        const delay = Math.min(times * 200, 5000);\n+        return delay;\n+      },\n+      reconnectOnError(err) {\n+        return err.message.includes('READONLY') || err.message.includes('ETIMEDOUT');\n+      },\n+      connectTimeout: 10000,\n+      lazyConnect: true,\n+    });",
         "explanation": "Added Redis connection resilience with exponential backoff retry strategy, automatic reconnection on timeout/readonly errors, and lazy connect to avoid blocking startup.",
         "confidence": 0.93,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "deployed",
     },
     {
@@ -419,7 +419,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/queue/metrics-sync.worker.ts\n+++ b/src/lib/queue/metrics-sync.worker.ts\n@@ -54,7 +54,18 @@\n   async process(job: Job) {\n-    const result = await this.metricService.syncAll(job.data);\n-    return result;\n+    try {\n+      const result = await this.metricService.syncAll(job.data);\n+      return result;\n+    } catch (error) {\n+      // Categorize failure for retry strategy\n+      if (isTransientError(error)) {\n+        throw new UnrecoverableError(`Transient failure, will retry: ${error.message}`);\n+      }\n+      // Log permanent failures and move to dead letter queue\n+      logger.error('Permanent sync failure', { jobId: job.id, error });\n+      await this.deadLetterQueue.add('failed-sync', { ...job.data, error: error.message });\n+      return { status: 'failed', error: error.message };\n+    }",
         "explanation": "Added proper error classification in the worker: transient errors trigger automatic retries while permanent failures are routed to a dead letter queue for investigation.",
         "confidence": 0.87,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "pending",
     },
     {
@@ -427,7 +427,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/services/integration/google-sheets.service.ts\n+++ b/src/lib/services/integration/google-sheets.service.ts\n@@ -154,7 +154,16 @@\n   async syncData(sheetId: string) {\n-    const data = await this.sheetsApi.spreadsheets.values.get(...);\n+    // Implement exponential backoff with jitter for rate limits\n+    const data = await retry(\n+      () => this.sheetsApi.spreadsheets.values.get(...),\n+      {\n+        retries: 3,\n+        factor: 2,\n+        minTimeout: 1000,\n+        maxTimeout: 10000,\n+        randomize: true,\n+        onRetry: (err, attempt) => logger.warn(`Sheets API retry ${attempt}`, { err }),\n+      }\n+    );",
         "explanation": "Added exponential backoff with jitter for Google Sheets API calls to gracefully handle 429 rate limit responses instead of failing immediately.",
         "confidence": 0.91,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "deployed",
     },
     {
@@ -435,7 +435,7 @@ DEMO_FIXES: list[dict] = [
         "diff": "--- a/src/lib/services/user/user.service.ts\n+++ b/src/lib/services/user/user.service.ts\n@@ -40,7 +40,14 @@\n   async create(data: CreateUserInput) {\n-    return this.prisma.user.create({ data });\n+    // Verify organization exists before creating user\n+    const org = await this.prisma.organization.findUnique({\n+      where: { id: data.organizationId },\n+    });\n+    if (!org) {\n+      throw ServiceError.notFound(`Organization ${data.organizationId} not found`);\n+    }\n+    return this.prisma.user.create({ data });",
         "explanation": "Added explicit organization existence check before user creation to provide a clear error message instead of a cryptic foreign key constraint violation.",
         "confidence": 0.93,
-        "model_used": "claude-sonnet-4-6",
+        "model_used": "claude-sonnet-4-5",
         "status": "pending",
     },
 ]
@@ -653,7 +653,7 @@ async def seed(clear: bool = False) -> None:
                     json.dumps({}),
                     feat.get("generated_diff"),
                     feat.get("explanation"),
-                    "claude-sonnet-4-6" if feat.get("explanation") else None,
+                    "claude-sonnet-4-5" if feat.get("explanation") else None,
                     feat["status"],
                     None,
                     None,
@@ -739,7 +739,7 @@ async def seed(clear: bool = False) -> None:
         for key, val in [
             ("auto_fix_enabled", True),
             ("min_confidence_threshold", 0.75),
-            ("model_preference", "claude-sonnet-4-6"),
+            ("model_preference", "claude-sonnet-4-5"),
         ]:
             await db.execute(
                 "INSERT INTO audit_log (id, action, entity_type, entity_id, details, actor, created_at) VALUES (?,?,?,?,?,?,?)",

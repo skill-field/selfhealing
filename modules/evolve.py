@@ -111,7 +111,7 @@ class EvolveModule:
         spec_result = await self.llm.generate_json(
             system_prompt=FEATURE_SPEC_SYSTEM_PROMPT,
             user_prompt=spec_user_prompt,
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
         )
         specification = spec_result["data"]
 
@@ -127,7 +127,7 @@ class EvolveModule:
         impl_result = await self.llm.generate_json(
             system_prompt=FEATURE_IMPL_SYSTEM_PROMPT,
             user_prompt=impl_user_prompt,
-            model="claude-sonnet-4-6",
+            model="claude-sonnet-4-5",
         )
         implementation = impl_result["data"]
 

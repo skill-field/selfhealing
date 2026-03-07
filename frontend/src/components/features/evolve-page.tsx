@@ -174,7 +174,7 @@ function FeatureRequestForm({
 
 function GeneratingOverlay() {
   return (
-    <div className="flex flex-col items-center justify-center py-8 gap-3">
+    <div className="flex flex-col items-center justify-center py-8 gap-4">
       <div className="relative">
         <Sparkles size={32} className="text-amber-400 animate-pulse" />
         <div className="absolute -inset-2 animate-ping opacity-20">
@@ -182,7 +182,12 @@ function GeneratingOverlay() {
         </div>
       </div>
       <p className="text-sm text-amber-300 font-medium">Claude is designing your feature...</p>
-      <p className="text-xs text-gray-500">This may take a minute</p>
+      <div className="space-y-1.5 text-xs text-gray-500">
+        <p>1. Fetching relevant source code from repo</p>
+        <p>2. Generating technical specification</p>
+        <p>3. Generating full implementation code</p>
+      </div>
+      <p className="text-xs text-gray-600">This typically takes 30-60 seconds</p>
     </div>
   );
 }

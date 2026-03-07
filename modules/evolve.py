@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from llm.client import AnthropicClient
+from llm.context_builder import ContextBuilder
 from llm.prompts import (
     FEATURE_SPEC_SYSTEM_PROMPT,
     FEATURE_SPEC_USER_TEMPLATE,
@@ -24,6 +25,7 @@ class EvolveModule:
     def __init__(self, anthropic_client: AnthropicClient, github_client: GitHubClient):
         self.llm = anthropic_client
         self.github = github_client
+        self.context_builder = ContextBuilder(github_client)
 
     async def submit_feature(
         self, title: str, description: str, priority: str = "medium"
@@ -89,6 +91,18 @@ class EvolveModule:
         title = feature.get("title", "")
         description = feature.get("description", "")
 
+        # 2b. Fetch repo context for better code generation
+        code_context_str = "(No source files available)"
+        try:
+            context = await self.context_builder.build_feature_context(title, description)
+            if context["files"]:
+                parts = []
+                for f in context["files"]:
+                    parts.append(f"### {f['path']}\n```\n{f['content']}\n```")
+                code_context_str = "\n\n".join(parts)
+        except Exception:
+            pass  # proceed without context if GitHub fetch fails
+
         # 3. First call: Generate specification (Claude Sonnet)
         spec_user_prompt = FEATURE_SPEC_USER_TEMPLATE.format(
             title=title,
@@ -107,6 +121,9 @@ class EvolveModule:
             description=description,
             specification=json.dumps(specification, indent=2),
         )
+        # Append source code context if available
+        if code_context_str != "(No source files available)":
+            impl_user_prompt += f"\n\n**Existing Source Code (for reference):**\n{code_context_str}"
         impl_result = await self.llm.generate_json(
             system_prompt=FEATURE_IMPL_SYSTEM_PROMPT,
             user_prompt=impl_user_prompt,

@@ -23,7 +23,7 @@ import { Spinner } from '../ui/spinner';
 import { EmptyState } from '../ui/empty-state';
 import { DiffViewer } from './diff-viewer';
 import { useFixes } from '../../hooks/use-fixes';
-import { approveFix, rejectFix, regenerateFix, generateFix } from '../../services/api';
+import { approveFix, rejectFix, regenerateFix, generateFix, deployToStaging } from '../../services/api';
 import type { Fix } from '../../types';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'deployed' | 'failed';
@@ -477,6 +477,23 @@ function FixRow({ fix, onClick, onNotification, onRefetch }: { fix: Fix; onClick
             </button>
           </>
         )}
+        {fix.status === 'approved' && (
+          <button
+            title="Deploy to Staging"
+            className="rounded p-1 text-blue-500/60 transition-colors hover:bg-blue-500/10 hover:text-blue-400"
+            onClick={async () => {
+              try {
+                await deployToStaging(fix.id);
+                onNotification('success', 'Deployed to staging');
+                onRefetch();
+              } catch (err) {
+                onNotification('error', err instanceof Error ? err.message : 'Deploy failed');
+              }
+            }}
+          >
+            <Rocket size={14} />
+          </button>
+        )}
         <button
           title="View Details"
           className="rounded p-1 text-gray-500 transition-colors hover:bg-gray-700 hover:text-gray-300"
@@ -744,9 +761,35 @@ function FixDetailView({
                 )}
 
                 {fix.status === 'approved' && (
-                  <div className="flex items-center gap-2 text-xs text-green-400">
-                    <CheckCircle2 size={14} />
-                    This fix has been approved and is ready for deployment.
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-500"
+                      onClick={async () => {
+                        setActionLoading('deploy');
+                        try {
+                          await deployToStaging(fix.id);
+                          onNotification('success', 'Fix deployed to staging');
+                          onRefetch();
+                        } catch (err) {
+                          onNotification('error', err instanceof Error ? err.message : 'Deploy failed');
+                        } finally {
+                          setActionLoading(null);
+                        }
+                      }}
+                      disabled={actionLoading !== null}
+                    >
+                      {actionLoading === 'deploy' ? (
+                        <Spinner size="sm" className="text-white" />
+                      ) : (
+                        <Rocket size={14} />
+                      )}
+                      Deploy to Staging
+                    </Button>
+                    <span className="text-xs text-green-400">
+                      <CheckCircle2 size={14} className="inline mr-1" />
+                      Approved — ready for deployment
+                    </span>
                   </div>
                 )}
 

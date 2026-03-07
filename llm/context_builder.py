@@ -80,6 +80,53 @@ class ContextBuilder:
 
         return {"files": file_entries, "total_lines": total_lines}
 
+    async def build_feature_context(self, title: str, description: str) -> dict:
+        """Build code context for feature generation by fetching relevant source files.
+
+        Uses heuristics to identify likely-relevant files from the repo based on
+        keywords in the title and description.
+        """
+        file_entries: list[dict] = []
+        total_lines = 0
+
+        # Extract likely file paths or module names from description
+        import re
+        # Look for explicit file paths mentioned
+        path_pattern = re.compile(r"(?:src/\S+\.\w+)")
+        mentioned_paths = path_pattern.findall(f"{title} {description}")
+
+        # Also try to fetch key structural files for context
+        structural_files = [
+            "src/lib/services/index.ts",
+            "prisma/schema.prisma",
+        ]
+
+        # Keywords to search for relevant service files
+        keywords = re.findall(r"\b([a-z]{3,})\b", f"{title} {description}".lower())
+        keyword_paths = [f"src/lib/services/{kw}/{kw}.service.ts" for kw in keywords[:3]]
+
+        all_paths = list(dict.fromkeys(mentioned_paths + keyword_paths + structural_files))
+
+        for path in all_paths[:5]:
+            content = await self.github.get_file_content(path)
+            if content is None:
+                continue
+
+            trimmed = self._trim_to_context(content, None, window=50)
+            lines_count = trimmed.count("\n") + 1
+            total_lines += lines_count
+
+            file_entries.append({
+                "path": path,
+                "content": trimmed,
+                "relevant_lines": "full context",
+            })
+
+            if total_lines >= self.max_context_lines:
+                break
+
+        return {"files": file_entries, "total_lines": total_lines}
+
     def _extract_files_from_stack(self, stack_trace: str) -> list[dict]:
         """Extract file paths and line numbers from stack trace.
 

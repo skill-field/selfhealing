@@ -22,6 +22,8 @@ from api.routes_evolve import router as evolve_router
 from api.routes_dashboard import router as dashboard_router
 from api.routes_events import router as events_router
 from api.routes_repos import router as repos_router
+from api.routes_cml import router as cml_router
+from api.routes_sources import router as sources_router
 
 
 @asynccontextmanager
@@ -86,6 +88,8 @@ app.include_router(evolve_router, prefix=API_PREFIX)
 app.include_router(dashboard_router, prefix=API_PREFIX)
 app.include_router(events_router, prefix=API_PREFIX)
 app.include_router(repos_router, prefix=API_PREFIX)
+app.include_router(cml_router, prefix=API_PREFIX)
+app.include_router(sources_router, prefix=API_PREFIX)
 
 # ─── Static Files & SPA Catch-All ───────────────────────────────────────────
 

@@ -253,7 +253,8 @@ export function VerifyPage() {
       await promoteDeployment(deploymentId);
       refetch();
     } catch (err) {
-      console.error('Failed to promote deployment:', err);
+      const msg = err instanceof Error ? err.message : 'Failed to promote deployment';
+      alert(msg);
     } finally {
       setPromotingId(null);
     }

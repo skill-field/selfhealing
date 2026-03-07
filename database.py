@@ -167,6 +167,22 @@ async def init_db() -> None:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS log_sources (
+                id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                source_type TEXT NOT NULL CHECK(source_type IN ('container', 'log_endpoint', 'syslog', 'file')),
+                endpoint_url TEXT,
+                container_id TEXT,
+                container_image TEXT,
+                environment TEXT DEFAULT 'production',
+                auth_header TEXT,
+                poll_interval_seconds INTEGER DEFAULT 60,
+                is_active INTEGER DEFAULT 1,
+                last_polled_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
         """)
 
         # Add repo_id column to existing tables (safe migration)

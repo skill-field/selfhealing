@@ -11,6 +11,7 @@ import {
   Presentation,
   ChevronLeft,
   Settings,
+  Cpu,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/verify', label: 'Verify', icon: Shield, color: 'text-blue-500' },
   { to: '/evolve', label: 'Evolve', icon: Sparkles, color: 'text-amber-500' },
   { to: '/audit', label: 'Audit Log', icon: FileText, color: 'text-gray-400' },
+  { to: '/platform', label: 'CML Platform', icon: Cpu, color: 'text-cyan-400' },
   { to: '/presentation', label: 'Presentation', icon: Presentation, color: 'text-gray-400' },
   { to: '/settings', label: 'Settings', icon: Settings, color: 'text-gray-400' },
 ];

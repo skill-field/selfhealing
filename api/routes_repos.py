@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 import database as db
+import crypto
 
 router = APIRouter(tags=["Repos"])
 
@@ -64,7 +65,8 @@ async def add_repo(req: RepoCreateRequest):
             """INSERT INTO monitored_repos
                (id, display_name, repo_slug, github_token, scan_paths, is_active, source_type, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, 1, 'github', ?, ?)""",
-            (repo_id, req.display_name, req.repo_slug, req.github_token or None,
+            (repo_id, req.display_name, req.repo_slug,
+             crypto.encrypt(req.github_token) if req.github_token else None,
              json.dumps(req.scan_paths), now, now),
         )
     except Exception:

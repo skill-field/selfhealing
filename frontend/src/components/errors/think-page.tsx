@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Brain,
   ChevronDown,
@@ -16,6 +17,7 @@ import { Button } from '../ui/button';
 import { Spinner } from '../ui/spinner';
 import { EmptyState } from '../ui/empty-state';
 import { useErrors } from '../../hooks/use-errors';
+import { updateErrorStatus } from '../../services/api';
 import type { Error as AppError } from '../../types';
 
 type StatusFilter = 'all' | 'new' | 'acknowledged' | 'fix_generated' | 'resolved' | 'ignored';
@@ -100,7 +102,8 @@ export function ThinkPage() {
     return p;
   }, [statusFilter, severityFilter, categoryFilter]);
 
-  const { errors, loading, error: fetchError, stats, statsLoading } = useErrors(filterParams);
+  const navigate = useNavigate();
+  const { errors, loading, error: fetchError, stats, statsLoading, refetch } = useErrors(filterParams);
 
   // Sort
   const sortedErrors = useMemo(() => {
@@ -283,9 +286,9 @@ export function ThinkPage() {
           description="Ingest logs from the Watch module to get started. Errors will be automatically analyzed and classified here."
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-800 bg-gray-900">
+        <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900">
           {/* Table Header */}
-          <div className="grid grid-cols-[80px_100px_1fr_90px_110px_100px_80px] items-center gap-2 border-b border-gray-800 bg-gray-900/80 px-4 py-2.5 text-xs font-semibold uppercase text-gray-500">
+          <div className="grid min-w-[750px] grid-cols-[80px_100px_1fr_90px_110px_100px_80px] items-center gap-2 border-b border-gray-800 bg-gray-900/80 px-4 py-2.5 text-xs font-semibold uppercase text-gray-500">
             <SortableHeader
               label="Severity"
               field="severity"
@@ -321,6 +324,8 @@ export function ThinkPage() {
                 error={err}
                 expanded={expandedId === err.id}
                 onToggle={() => toggleExpand(err.id)}
+                onNavigateToFix={(id) => navigate(`/heal?error_id=${id}`)}
+                onStatusChange={refetch}
               />
             ))}
           </div>
@@ -366,21 +371,35 @@ function ErrorRow({
   error,
   expanded,
   onToggle,
+  onNavigateToFix,
+  onStatusChange,
 }: {
   error: AppError;
   expanded: boolean;
   onToggle: () => void;
+  onNavigateToFix: (id: string) => void;
+  onStatusChange: () => void;
 }) {
   const message = getErrorMessage(error);
   const statusLabel = STATUS_LABELS[error.status] ?? error.status;
   const categoryStyle =
     CATEGORY_COLORS[error.category ?? 'unknown'] ?? CATEGORY_COLORS.unknown;
 
+  const handleStatusUpdate = async (e: React.MouseEvent, status: string) => {
+    e.stopPropagation();
+    try {
+      await updateErrorStatus(error.id, status);
+      onStatusChange();
+    } catch {
+      // silently fail
+    }
+  };
+
   return (
     <>
       {/* Row */}
       <div
-        className="grid cursor-pointer grid-cols-[80px_100px_1fr_90px_110px_100px_80px] items-center gap-2 border-b border-gray-800/50 px-4 py-2.5 transition-colors hover:bg-gray-800/40"
+        className="grid min-w-[750px] cursor-pointer grid-cols-[80px_100px_1fr_90px_110px_100px_80px] items-center gap-2 border-b border-gray-800/50 px-4 py-2.5 transition-colors hover:bg-gray-800/40"
         onClick={onToggle}
       >
         <Badge variant={getSeverityVariant(error.severity)} className="justify-center text-[10px]">
@@ -412,12 +431,14 @@ function ErrorRow({
           <button
             title="Acknowledge"
             className="rounded p-1 text-gray-500 transition-colors hover:bg-gray-700 hover:text-gray-300"
+            onClick={(e) => handleStatusUpdate(e, 'acknowledged')}
           >
             <Eye size={14} />
           </button>
           <button
             title="Ignore"
             className="rounded p-1 text-gray-500 transition-colors hover:bg-gray-700 hover:text-gray-300"
+            onClick={(e) => handleStatusUpdate(e, 'ignored')}
           >
             <EyeOff size={14} />
           </button>
@@ -425,18 +446,27 @@ function ErrorRow({
       </div>
 
       {/* Expanded Detail Panel */}
-      {expanded && <ErrorDetailPanel error={error} />}
+      {expanded && <ErrorDetailPanel error={error} onNavigateToFix={onNavigateToFix} onStatusChange={onStatusChange} />}
     </>
   );
 }
 
-function ErrorDetailPanel({ error }: { error: AppError }) {
+function ErrorDetailPanel({ error, onNavigateToFix, onStatusChange }: { error: AppError; onNavigateToFix: (id: string) => void; onStatusChange: () => void }) {
   const message = getErrorMessage(error);
   const affectedFiles = error.affected_files?.length
     ? error.affected_files
     : error.affected_file
       ? [error.affected_file]
       : [];
+
+  const handleStatusUpdate = async (status: string) => {
+    try {
+      await updateErrorStatus(error.id, status);
+      onStatusChange();
+    } catch {
+      // silently fail
+    }
+  };
 
   return (
     <div className="border-b border-gray-800 bg-gray-950/60 px-6 py-5">
@@ -550,15 +580,15 @@ function ErrorDetailPanel({ error }: { error: AppError }) {
           <div>
             <h4 className="mb-1.5 text-xs font-semibold uppercase text-gray-500">Actions</h4>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="primary" className="bg-green-600 hover:bg-green-500">
+              <Button size="sm" variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => onNavigateToFix(error.id)}>
                 <Wrench size={14} />
                 Generate Fix
               </Button>
-              <Button size="sm" variant="secondary">
+              <Button size="sm" variant="secondary" onClick={() => handleStatusUpdate('acknowledged')}>
                 <Eye size={14} />
                 Acknowledge
               </Button>
-              <Button size="sm" variant="ghost">
+              <Button size="sm" variant="ghost" onClick={() => handleStatusUpdate('ignored')}>
                 <EyeOff size={14} />
                 Ignore
               </Button>

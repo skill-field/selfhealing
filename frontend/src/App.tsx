@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppShell } from './components/layout/app-shell';
 import { DashboardPage } from './components/dashboard/dashboard-page';
 import { WatchPage } from './components/errors/watch-page';
@@ -9,6 +9,7 @@ import { EvolvePage } from './components/features/evolve-page';
 import { AuditPage } from './components/audit/audit-page';
 import { PresentationPage } from './components/presentation/presentation-page';
 import { ReposPage } from './components/settings/repos-page';
+import { CmlPage } from './components/platform/cml-page';
 
 export default function App() {
   return (
@@ -23,7 +24,9 @@ export default function App() {
           <Route path="evolve" element={<EvolvePage />} />
           <Route path="audit" element={<AuditPage />} />
           <Route path="presentation" element={<PresentationPage />} />
+          <Route path="platform" element={<CmlPage />} />
           <Route path="settings" element={<ReposPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

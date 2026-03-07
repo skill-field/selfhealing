@@ -82,7 +82,8 @@ async def scan_single_repo(repo_row: dict, llm: AnthropicClient) -> dict:
     """Scan a single repo. Returns stats dict."""
     repo_id = repo_row["id"]
     repo_slug = repo_row["repo_slug"]
-    repo_token = repo_row.get("github_token") or settings.GITHUB_TOKEN
+    import crypto
+    repo_token = crypto.decrypt(repo_row.get("github_token") or "") or settings.GITHUB_TOKEN
 
     scan_paths_raw = repo_row.get("scan_paths", "[]")
     try:

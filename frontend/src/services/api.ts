@@ -48,6 +48,12 @@ export const getErrors = (params?: Record<string, string>) => {
 };
 export const getError = (id: string) => request<AppError>(`/errors/${id}`);
 export const getErrorStats = () => request<ErrorStats>('/errors/stats');
+export const updateErrorStatus = (id: string, status: string) =>
+  request<AppError>(`/errors/${id}/status?status=${encodeURIComponent(status)}`, {
+    method: 'PATCH',
+  });
+export const classifyError = (id: string) =>
+  request<Record<string, unknown>>(`/errors/${id}/classify`, { method: 'POST' });
 
 // Fixes (HEAL)
 export const getFixes = (filters?: Record<string, string>) => {
@@ -63,7 +69,7 @@ export const generateFix = (errorId: string, guidance?: string) =>
 export const approveFix = (id: string, notes?: string) =>
   request<Fix>(`/fixes/${id}/approve`, {
     method: 'POST',
-    body: JSON.stringify({ notes }),
+    body: JSON.stringify({ reviewer_notes: notes }),
   });
 export const rejectFix = (id: string, reason?: string) =>
   request<Fix>(`/fixes/${id}/reject`, {
@@ -101,12 +107,12 @@ export const generateFeature = (featureId: string) =>
 export const approveFeature = (featureId: string, notes?: string) =>
   request<FeatureRequest>(`/features/${featureId}/approve`, {
     method: 'POST',
-    body: JSON.stringify({ notes }),
+    body: JSON.stringify({ reviewer_notes: notes }),
   });
 export const rejectFeature = (featureId: string, notes: string) =>
   request<FeatureRequest>(`/features/${featureId}/reject`, {
     method: 'POST',
-    body: JSON.stringify({ notes }),
+    body: JSON.stringify({ reviewer_notes: notes }),
   });
 
 // Dashboard

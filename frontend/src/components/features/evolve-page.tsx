@@ -426,7 +426,7 @@ export function EvolvePage() {
       await generateFeature(featureId);
       refetch();
     } catch (err) {
-      console.error('Failed to generate feature:', err);
+      alert(err instanceof Error ? err.message : 'Failed to generate feature');
     } finally {
       setActionLoading(null);
     }
@@ -438,7 +438,7 @@ export function EvolvePage() {
       await approveFeature(featureId, notes);
       refetch();
     } catch (err) {
-      console.error('Failed to approve feature:', err);
+      alert(err instanceof Error ? err.message : 'Failed to approve feature');
     } finally {
       setActionLoading(null);
     }
@@ -450,7 +450,7 @@ export function EvolvePage() {
       await rejectFeature(featureId, notes);
       refetch();
     } catch (err) {
-      console.error('Failed to reject feature:', err);
+      alert(err instanceof Error ? err.message : 'Failed to reject feature');
     } finally {
       setActionLoading(null);
     }

@@ -54,6 +54,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   integration: '#3b82f6',
   ai: '#a855f7',
   infrastructure: '#ec4899',
+  ui: '#14b8a6',
   unknown: '#6b7280',
 };
 
@@ -81,7 +82,7 @@ function getActionBadgeVariant(action: string): 'critical' | 'high' | 'medium' |
 }
 
 export function DashboardPage() {
-  const { summary, timeline, loading } = useDashboard();
+  const { summary, timeline, loading, error: dashboardError } = useDashboard();
   const { entries: auditEntries } = useAuditLog();
   const { connected, events } = useSSE();
   const feedRef = useRef<HTMLDivElement>(null);
@@ -167,6 +168,15 @@ export function DashboardPage() {
     return (
       <div className="flex h-96 items-center justify-center">
         <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (dashboardError) {
+    return (
+      <div className="flex h-96 flex-col items-center justify-center gap-4">
+        <AlertTriangle size={48} className="text-red-400" />
+        <p className="text-sm text-red-400">Failed to load dashboard: {dashboardError}</p>
       </div>
     );
   }

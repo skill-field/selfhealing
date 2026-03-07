@@ -24,6 +24,7 @@ export function useSSE() {
       retryCount.current = 0;
     };
 
+    // Handle unnamed messages
     es.onmessage = (event) => {
       try {
         const parsed: SSEEvent = JSON.parse(event.data);
@@ -33,6 +34,25 @@ export function useSSE() {
         // ignore non-JSON messages
       }
     };
+
+    // Handle named event types (server sends event: <type>)
+    const eventTypes = [
+      'error_detected', 'classification_done', 'fix_generated',
+      'fix_approved', 'fix_rejected', 'deployment_status',
+      'feature_generated', 'heartbeat',
+    ];
+    for (const type of eventTypes) {
+      es.addEventListener(type, (event: MessageEvent) => {
+        try {
+          const parsed: SSEEvent = JSON.parse(event.data);
+          if (type === 'heartbeat') return; // skip heartbeats
+          setLastEvent(parsed);
+          setEvents((prev) => [...prev.slice(-99), parsed]);
+        } catch {
+          // ignore
+        }
+      });
+    }
 
     es.onerror = () => {
       es.close();

@@ -2,8 +2,8 @@ export type Severity = 'critical' | 'high' | 'medium' | 'low';
 export type FixStatus = 'pending' | 'approved' | 'rejected' | 'deployed' | 'failed';
 export type DeploymentStatus = 'pending' | 'deploying' | 'deployed' | 'testing' | 'tests_passed' | 'promoted' | 'rolled_back' | 'failed';
 export type FeatureStatus = 'submitted' | 'generating' | 'generated' | 'approved' | 'rejected' | 'deployed';
-export type ErrorStatus = 'new' | 'acknowledged' | 'fix_generated' | 'resolved' | 'ignored';
-export type ErrorCategory = 'database' | 'auth' | 'api' | 'integration' | 'ai' | 'infrastructure' | 'unknown';
+export type ErrorStatus = 'new' | 'acknowledged' | 'fix_generated' | 'fix_approved' | 'fix_deployed' | 'resolved' | 'ignored';
+export type ErrorCategory = 'database' | 'auth' | 'api' | 'integration' | 'ai' | 'infrastructure' | 'ui' | 'unknown';
 
 export interface LogEntry {
   id: string;

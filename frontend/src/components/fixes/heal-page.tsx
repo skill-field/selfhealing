@@ -308,9 +308,9 @@ export function HealPage() {
           description="Select an error from the Think module to generate a fix."
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-800 bg-gray-900">
+        <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900">
           {/* Table Header */}
-          <div className="grid grid-cols-[90px_1fr_100px_90px_120px_120px] items-center gap-2 border-b border-gray-800 bg-gray-900/80 px-4 py-2.5 text-xs font-semibold uppercase text-gray-500">
+          <div className="grid min-w-[700px] grid-cols-[90px_1fr_100px_90px_120px_120px] items-center gap-2 border-b border-gray-800 bg-gray-900/80 px-4 py-2.5 text-xs font-semibold uppercase text-gray-500">
             <span>Status</span>
             <span>Error Message</span>
             <span>Confidence</span>
@@ -326,6 +326,8 @@ export function HealPage() {
                 key={fix.id}
                 fix={fix}
                 onClick={() => setSelectedFixId(fix.id)}
+                onNotification={showNotification}
+                onRefetch={refetch}
               />
             ))}
           </div>
@@ -399,7 +401,7 @@ function StatCard({
   );
 }
 
-function FixRow({ fix, onClick }: { fix: Fix; onClick: () => void }) {
+function FixRow({ fix, onClick, onNotification, onRefetch }: { fix: Fix; onClick: () => void; onNotification: (type: 'success' | 'error', message: string) => void; onRefetch: () => void }) {
   const errorMsg = fix.explanation
     ? fix.explanation.substring(0, 80) + (fix.explanation.length > 80 ? '...' : '')
     : '(no description)';
@@ -408,7 +410,7 @@ function FixRow({ fix, onClick }: { fix: Fix; onClick: () => void }) {
 
   return (
     <div
-      className="grid cursor-pointer grid-cols-[90px_1fr_100px_90px_120px_120px] items-center gap-2 border-b border-gray-800/50 px-4 py-2.5 transition-colors hover:bg-gray-800/40"
+      className="grid min-w-[700px] cursor-pointer grid-cols-[90px_1fr_100px_90px_120px_120px] items-center gap-2 border-b border-gray-800/50 px-4 py-2.5 transition-colors hover:bg-gray-800/40"
       onClick={onClick}
     >
       <Badge variant={getStatusBadgeVariant(fix.status)} className="justify-center text-[10px]">
@@ -446,12 +448,30 @@ function FixRow({ fix, onClick }: { fix: Fix; onClick: () => void }) {
             <button
               title="Approve"
               className="rounded p-1 text-green-500/60 transition-colors hover:bg-green-500/10 hover:text-green-400"
+              onClick={async () => {
+                try {
+                  await approveFix(fix.id);
+                  onNotification('success', 'Fix approved');
+                  onRefetch();
+                } catch (err) {
+                  onNotification('error', err instanceof Error ? err.message : 'Failed to approve');
+                }
+              }}
             >
               <CheckCircle2 size={14} />
             </button>
             <button
               title="Reject"
               className="rounded p-1 text-red-500/60 transition-colors hover:bg-red-500/10 hover:text-red-400"
+              onClick={async () => {
+                try {
+                  await rejectFix(fix.id, 'Rejected from list view');
+                  onNotification('success', 'Fix rejected');
+                  onRefetch();
+                } catch (err) {
+                  onNotification('error', err instanceof Error ? err.message : 'Failed to reject');
+                }
+              }}
             >
               <XCircle size={14} />
             </button>
@@ -574,7 +594,7 @@ function FixDetailView({
         </h3>
         <DiffViewer
           diff={fix.diff ?? ''}
-          filesChanged={Array.isArray(fix.files_changed) ? fix.files_changed.join(', ') : fix.files_changed}
+          filesChanged={Array.isArray(fix.files_changed) ? JSON.stringify(fix.files_changed) : fix.files_changed}
         />
       </div>
 

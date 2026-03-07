@@ -110,7 +110,7 @@ class EvolveModule:
         impl_result = await self.llm.generate_json(
             system_prompt=FEATURE_IMPL_SYSTEM_PROMPT,
             user_prompt=impl_user_prompt,
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
         )
         implementation = impl_result["data"]
 

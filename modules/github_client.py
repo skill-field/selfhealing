@@ -13,9 +13,9 @@ from config import settings
 class GitHubClient:
     """Fetch source code from the Metrics app repo via GitHub API."""
 
-    def __init__(self):
-        self.repo = settings.GITHUB_REPO  # "koshaji/metrics"
-        self.token = settings.GITHUB_TOKEN
+    def __init__(self, repo: str | None = None, token: str | None = None):
+        self.repo = repo or settings.GITHUB_REPO
+        self.token = token or settings.GITHUB_TOKEN
         self.base_url = "https://api.github.com"
         self._cache: dict[str, tuple[str, float]] = {}  # {path: (content, timestamp)}
         self.cache_ttl = 600  # 10 minutes

@@ -8,6 +8,7 @@ import { VerifyPage } from './components/deployments/verify-page';
 import { EvolvePage } from './components/features/evolve-page';
 import { AuditPage } from './components/audit/audit-page';
 import { PresentationPage } from './components/presentation/presentation-page';
+import { ReposPage } from './components/settings/repos-page';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="evolve" element={<EvolvePage />} />
           <Route path="audit" element={<AuditPage />} />
           <Route path="presentation" element={<PresentationPage />} />
+          <Route path="settings" element={<ReposPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

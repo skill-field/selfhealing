@@ -10,6 +10,7 @@ import {
   FileText,
   Presentation,
   ChevronLeft,
+  Settings,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/evolve', label: 'Evolve', icon: Sparkles, color: 'text-amber-500' },
   { to: '/audit', label: 'Audit Log', icon: FileText, color: 'text-gray-400' },
   { to: '/presentation', label: 'Presentation', icon: Presentation, color: 'text-gray-400' },
+  { to: '/settings', label: 'Settings', icon: Settings, color: 'text-gray-400' },
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {

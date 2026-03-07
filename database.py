@@ -155,10 +155,52 @@ async def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_fixes_status ON fixes(status);
             CREATE INDEX IF NOT EXISTS idx_deployments_fix_id ON deployments(fix_id);
             CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
+
+            CREATE TABLE IF NOT EXISTS monitored_repos (
+                id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                repo_slug TEXT NOT NULL UNIQUE,
+                github_token TEXT,
+                scan_paths TEXT DEFAULT '[]',
+                is_active INTEGER DEFAULT 1,
+                source_type TEXT DEFAULT 'github',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
         """)
 
-        # Seed default system_config values
+        # Add repo_id column to existing tables (safe migration)
+        for table in ["errors", "fixes", "feature_requests", "deployments"]:
+            try:
+                await db.execute(f"ALTER TABLE {table} ADD COLUMN repo_id TEXT REFERENCES monitored_repos(id)")
+            except Exception:
+                pass  # column already exists
+
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_errors_repo_id ON errors(repo_id)")
+
+        # Seed default monitored repo
         now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            """INSERT OR IGNORE INTO monitored_repos
+               (id, display_name, repo_slug, scan_paths, is_active, source_type, created_at, updated_at)
+               VALUES (?, ?, ?, ?, 1, 'github', ?, ?)""",
+            ("default", "Metrics AI", settings.GITHUB_REPO,
+             json.dumps([
+                 "src/lib/services/metric/metric.service.ts",
+                 "src/lib/services/metric/metric-value.service.ts",
+                 "src/lib/services/scorecard/scorecard.service.ts",
+                 "src/lib/services/tenant/tenant.service.ts",
+                 "src/lib/auth/auth.config.ts",
+                 "prisma/schema.prisma",
+                 "src/app/api/v1/metrics/route.ts",
+                 "src/app/api/v1/scorecards/route.ts",
+                 "next.config.ts",
+             ]), now, now),
+        )
+        # Backfill existing errors with default repo_id
+        await db.execute("UPDATE errors SET repo_id = 'default' WHERE repo_id IS NULL")
+
+        # Seed default system_config values
         defaults = [
             ("auto_fix_enabled", json.dumps(False), "Automatically generate fixes for new errors", now),
             ("auto_deploy_enabled", json.dumps(False), "Automatically deploy approved fixes", now),

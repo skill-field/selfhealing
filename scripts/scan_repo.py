@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""CML Job — Scan the real Metrics AI repo for issues and feed them into Sentinel.
+"""CML Job — Scan monitored repos for issues using Claude via AWS Bedrock.
 
-Uses Claude via AWS Bedrock (Cloudera AI) to analyze the actual codebase,
-detect potential bugs, security issues, and code quality problems,
-then ingests them as real errors in Sentinel's Watch module.
-
-This is the real Cloudera AI integration:
+Uses Cloudera AI (CML) to orchestrate:
   CML Job -> GitHub API (fetch code) -> Claude via Bedrock (analyze) -> Sentinel DB
+
+Iterates all active repos from the monitored_repos table.
 """
 from __future__ import annotations
 
@@ -18,7 +16,6 @@ import hashlib
 from datetime import datetime, timezone
 from uuid import uuid4
 
-# Ensure project root is importable
 try:
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 except NameError:
@@ -31,40 +28,27 @@ from database import init_db, execute, fetch_one, fetch_all
 from llm.client import AnthropicClient
 from modules.github_client import GitHubClient
 
-# ─── Configuration ────────────────────────────────────────────────────────────
-
-# Key files to scan in the Metrics AI repo
-SCAN_TARGETS = [
-    # Core services
+# Default scan targets for repos with no configured paths
+DEFAULT_SCAN_PATHS = [
     "src/lib/services/metric/metric.service.ts",
     "src/lib/services/metric/metric-value.service.ts",
     "src/lib/services/scorecard/scorecard.service.ts",
     "src/lib/services/tenant/tenant.service.ts",
-    "src/lib/services/user/user.service.ts",
-    # Auth
     "src/lib/auth/auth.config.ts",
-    "src/lib/auth/session.ts",
-    # API routes
+    "prisma/schema.prisma",
     "src/app/api/v1/metrics/route.ts",
     "src/app/api/v1/scorecards/route.ts",
-    "src/app/api/v1/health/route.ts",
-    # Database
-    "prisma/schema.prisma",
-    # Config
-    "src/lib/config/index.ts",
     "next.config.ts",
-    # Queue / background
-    "src/lib/queue/worker.ts",
-    "src/lib/queue/jobs.ts",
 ]
 
-SCAN_PROMPT = """You are a senior software engineer performing a thorough code review of a production Next.js 16 + TypeScript + Prisma application called "Metrics AI".
+SCAN_PROMPT = """You are a senior software engineer performing a thorough code review of a production application.
 
 Analyze the following source file for REAL issues — bugs, security vulnerabilities, performance problems, error handling gaps, and potential runtime errors.
 
+**Repository:** {repo_slug}
 **File:** {file_path}
 **Content:**
-```typescript
+```
 {content}
 ```
 
@@ -94,127 +78,131 @@ Respond ONLY with valid JSON:
 }}"""
 
 
-async def scan_repo():
-    """Main scan function — fetch code, analyze with Claude, ingest errors."""
-    print(f"[Sentinel Scanner] Starting repo scan of {settings.GITHUB_REPO}", flush=True)
-    print(f"[Sentinel Scanner] Using Bedrock: {settings.USE_BEDROCK}, Region: {settings.AWS_REGION}", flush=True)
+async def scan_single_repo(repo_row: dict, llm: AnthropicClient) -> dict:
+    """Scan a single repo. Returns stats dict."""
+    repo_id = repo_row["id"]
+    repo_slug = repo_row["repo_slug"]
+    repo_token = repo_row.get("github_token") or settings.GITHUB_TOKEN
 
-    await init_db()
+    scan_paths_raw = repo_row.get("scan_paths", "[]")
+    try:
+        scan_paths = json.loads(scan_paths_raw) if isinstance(scan_paths_raw, str) else scan_paths_raw
+    except Exception:
+        scan_paths = []
 
-    github = GitHubClient()
-    llm = AnthropicClient()
+    if not scan_paths:
+        scan_paths = DEFAULT_SCAN_PATHS
 
-    if not llm.has_key:
-        print("[Sentinel Scanner] WARNING: No AI credentials configured. Cannot scan.", flush=True)
-        return
+    github = GitHubClient(repo=repo_slug, token=repo_token)
+    stats = {"files_scanned": 0, "total_issues": 0, "new_issues": 0}
 
-    if not github.token:
-        print("[Sentinel Scanner] WARNING: No GitHub token. Cannot fetch code.", flush=True)
-        return
+    for file_path in scan_paths:
+        print(f"  [{repo_slug}] Scanning {file_path}...", flush=True)
 
-    total_issues = 0
-    new_issues = 0
-    files_scanned = 0
-
-    for file_path in SCAN_TARGETS:
-        print(f"[Sentinel Scanner] Scanning {file_path}...", flush=True)
-
-        # Fetch file from GitHub
         content = await github.get_file_content(file_path)
         if content is None:
-            print(f"  -> File not found, skipping", flush=True)
+            print(f"    -> Not found, skipping", flush=True)
             continue
 
-        files_scanned += 1
+        stats["files_scanned"] += 1
 
-        # Truncate very large files
         lines = content.split("\n")
         if len(lines) > 500:
             content = "\n".join(lines[:500]) + f"\n\n... (truncated, {len(lines)} total lines)"
 
-        # Analyze with Claude via Bedrock
         try:
             result = await llm.generate_json(
                 system_prompt="You are a code analysis expert. Respond only with valid JSON.",
-                user_prompt=SCAN_PROMPT.format(file_path=file_path, content=content),
+                user_prompt=SCAN_PROMPT.format(
+                    repo_slug=repo_slug, file_path=file_path, content=content
+                ),
                 model="claude-sonnet-4-20250514",
             )
         except Exception as e:
-            print(f"  -> LLM error: {e}", flush=True)
+            print(f"    -> LLM error: {e}", flush=True)
             continue
 
         issues = result["data"].get("issues", [])
         if not issues:
-            print(f"  -> No issues found", flush=True)
+            print(f"    -> Clean", flush=True)
             continue
 
-        print(f"  -> Found {len(issues)} issues (model: {result.get('model', '?')}, tokens: {result.get('prompt_tokens', 0)}+{result.get('completion_tokens', 0)})", flush=True)
+        print(f"    -> {len(issues)} issues found", flush=True)
 
-        # Ingest each issue into the database
         now = datetime.now(timezone.utc).isoformat()
         for issue in issues:
-            total_issues += 1
+            stats["total_issues"] += 1
             error_message = issue.get("error_message", "")
             error_type = issue.get("error_type", "")
 
-            # Compute fingerprint for deduplication
-            fp_input = f"{error_type}|{error_message}|{file_path}".lower()
+            fp_input = f"{error_type}|{error_message}|{file_path}|{repo_slug}".lower()
             fingerprint = hashlib.sha256(fp_input.encode()).hexdigest()[:32]
 
-            # Check if already exists
             existing = await fetch_one(
-                "SELECT id, occurrence_count FROM errors WHERE fingerprint = ?",
-                (fingerprint,),
+                "SELECT id FROM errors WHERE fingerprint = ? AND repo_id = ?",
+                (fingerprint, repo_id),
             )
             if existing:
                 await execute(
                     "UPDATE errors SET occurrence_count = occurrence_count + 1, last_seen = ?, updated_at = ? WHERE id = ?",
                     (now, now, existing["id"]),
                 )
-                print(f"    -> Duplicate (updated count): {error_message[:60]}", flush=True)
                 continue
 
-            # New error — insert
-            new_issues += 1
+            stats["new_issues"] += 1
             error_id = uuid4().hex
             await execute(
                 """INSERT INTO errors
                    (id, source, environment, raw_log, error_message, error_type,
                     stack_trace, severity, category, affected_file, fingerprint,
-                    occurrence_count, first_seen, last_seen, status, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 'new', ?, ?)""",
+                    occurrence_count, first_seen, last_seen, status, repo_id, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 'new', ?, ?, ?)""",
                 (
-                    error_id, settings.GITHUB_REPO, "production",
+                    error_id, repo_slug, "production",
                     issue.get("raw_log", f"[Scanner] {error_message}"),
                     error_message, error_type,
                     issue.get("stack_trace"), issue.get("severity", "medium"),
                     issue.get("category", "unknown"), file_path,
-                    fingerprint, now, now, now, now,
+                    fingerprint, now, now, repo_id, now, now,
                 ),
             )
 
-            # Audit log
             await execute(
                 "INSERT INTO audit_log (id, action, entity_type, entity_id, details, actor, created_at) VALUES (?,?,?,?,?,?,?)",
-                (
-                    uuid4().hex, "error_detected", "error", error_id,
-                    json.dumps({
-                        "source": "cml_scanner",
-                        "file": file_path,
-                        "model": result.get("model", "unknown"),
-                        "tokens": result.get("prompt_tokens", 0) + result.get("completion_tokens", 0),
-                    }),
-                    "cml_scanner_job", now,
-                ),
+                (uuid4().hex, "error_detected", "error", error_id,
+                 json.dumps({"source": "cml_scanner", "repo": repo_slug, "file": file_path}),
+                 "cml_scanner_job", now),
             )
-            print(f"    -> NEW: [{issue.get('severity', '?')}] {error_message[:60]}", flush=True)
 
-    print(f"\n[Sentinel Scanner] Done.", flush=True)
-    print(f"  Files scanned: {files_scanned}", flush=True)
-    print(f"  Total issues: {total_issues}", flush=True)
-    print(f"  New issues: {new_issues}", flush=True)
-    print(f"  Duplicates: {total_issues - new_issues}", flush=True)
+    return stats
+
+
+async def scan_all_repos():
+    """Main entry — scan all active monitored repos."""
+    print("[Sentinel Scanner] Starting multi-repo scan", flush=True)
+    print(f"[Sentinel Scanner] Bedrock: {settings.USE_BEDROCK}, Region: {settings.AWS_REGION}", flush=True)
+
+    await init_db()
+
+    llm = AnthropicClient()
+    if not llm.has_key:
+        print("[Sentinel Scanner] ERROR: No AI credentials. Cannot scan.", flush=True)
+        return
+
+    repos = await fetch_all("SELECT * FROM monitored_repos WHERE is_active = 1")
+    if not repos:
+        print("[Sentinel Scanner] No active repos configured.", flush=True)
+        return
+
+    print(f"[Sentinel Scanner] Found {len(repos)} active repo(s)", flush=True)
+
+    for repo in repos:
+        print(f"\n[Sentinel Scanner] === {repo['display_name']} ({repo['repo_slug']}) ===", flush=True)
+        stats = await scan_single_repo(repo, llm)
+        print(f"  Files: {stats['files_scanned']}, Issues: {stats['total_issues']}, New: {stats['new_issues']}", flush=True)
+
+    print("\n[Sentinel Scanner] All repos scanned.", flush=True)
 
 
 if __name__ == "__main__":
-    asyncio.run(scan_repo())
+    asyncio.run(scan_all_repos())

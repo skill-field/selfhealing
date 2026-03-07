@@ -6,8 +6,8 @@ from config import settings
 
 # Bedrock model ID mapping (Bedrock uses different model IDs)
 BEDROCK_MODEL_MAP = {
-    "claude-sonnet-4-20250514": "us.anthropic.claude-sonnet-4-20250514-v1:0",
-    "claude-opus-4-20250514": "us.anthropic.claude-opus-4-20250514-v1:0",
+    "claude-sonnet-4-6": "us.anthropic.claude-sonnet-4-6",
+    "claude-opus-4-6": "us.anthropic.claude-opus-4-6-v1",
     "claude-haiku-4-5-20251001": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
 }
 
@@ -43,7 +43,7 @@ class AnthropicClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-6",
         max_tokens: int = 4096,
     ) -> dict:
         """Call Claude API and return parsed response.
@@ -84,7 +84,7 @@ class AnthropicClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "claude-sonnet-4-6",
     ) -> dict:
         """Call Claude and parse JSON from the response content."""
         result = await self.complete(system_prompt, user_prompt, model=model)

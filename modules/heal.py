@@ -77,7 +77,7 @@ class HealModule:
         llm_result = await self.llm.generate_json(
             system_prompt=FIX_GENERATION_SYSTEM_PROMPT,
             user_prompt=user_prompt,
-            model="claude-opus-4-20250514",
+            model="claude-opus-4-6",
         )
 
         parsed = llm_result["data"]

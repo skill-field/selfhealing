@@ -78,7 +78,7 @@ async def ingest_batch(batch: LogBatchRequest):
 
 @router.get("/recent")
 async def get_recent_logs(limit: int = 50):
-    """Get recent error entries from the database."""
+    """Get recent error entries as log entries for the Watch UI."""
     if limit < 1:
         limit = 1
     if limit > 200:
@@ -89,5 +89,23 @@ async def get_recent_logs(limit: int = 50):
         (limit,),
     )
 
-    errors = [_error_row_to_response(row) for row in rows]
-    return {"logs": errors, "total": len(errors)}
+    # Map error records to LogEntry shape expected by frontend
+    logs = []
+    for row in rows:
+        r = _error_row_to_response(row)
+        logs.append({
+            "id": r["id"],
+            "timestamp": r.get("last_seen") or r.get("created_at", ""),
+            "level": {"critical": "ERROR", "high": "ERROR", "medium": "WARN", "low": "INFO"}.get(r.get("severity", "medium"), "WARN"),
+            "message": r.get("error_message") or r.get("raw_log") or "",
+            "source": r.get("source") or "unknown",
+            "environment": r.get("environment"),
+            # Include extra fields for detail views
+            "error_type": r.get("error_type"),
+            "stack_trace": r.get("stack_trace"),
+            "status": r.get("status"),
+            "occurrence_count": r.get("occurrence_count", 1),
+            "fingerprint": r.get("fingerprint"),
+        })
+
+    return {"logs": logs, "total": len(logs)}

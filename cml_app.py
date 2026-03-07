@@ -28,6 +28,15 @@ try:
 except Exception as e:
     print(f"[Sentinel] Git pull skipped: {e}", flush=True)
 
+# Clear __pycache__ to prevent stale bytecode
+import shutil
+for dirpath, dirs, _files in os.walk(PROJECT_ROOT):
+    for d in dirs:
+        if d == "__pycache__":
+            p = os.path.join(dirpath, d)
+            shutil.rmtree(p, ignore_errors=True)
+            print(f"[Sentinel] Cleared {p}", flush=True)
+
 try:
     # Always install deps (requirements.txt may have changed after git pull)
     print("[Sentinel] Installing dependencies...", flush=True)

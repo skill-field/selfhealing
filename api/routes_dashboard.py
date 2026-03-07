@@ -63,7 +63,7 @@ def _row_to_fix(row: dict) -> FixResponse:
         diff=row.get("diff"),
         explanation=row.get("explanation"),
         files_changed=_safe_json(row.get("files_changed"), []),
-        confidence=round(row["confidence"] * 100, 1) if row.get("confidence") is not None and row["confidence"] <= 1 else row.get("confidence"),
+        confidence=round(row["confidence"] * 100, 1) if row.get("confidence") is not None and 0 < row["confidence"] <= 1 else row.get("confidence"),
         model_used=row.get("model_used"),
         prompt_tokens=row.get("prompt_tokens"),
         completion_tokens=row.get("completion_tokens"),

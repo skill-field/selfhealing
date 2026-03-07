@@ -594,7 +594,7 @@ function FixDetailView({
         </h3>
         <DiffViewer
           diff={fix.diff ?? ''}
-          filesChanged={Array.isArray(fix.files_changed) ? JSON.stringify(fix.files_changed) : fix.files_changed}
+          filesChanged={Array.isArray(fix.files_changed) ? fix.files_changed.join(', ') : (fix.files_changed ?? '')}
         />
       </div>
 

@@ -4,7 +4,7 @@ import json
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from models import ErrorListResponse, ErrorResponse, ErrorStats
 from database import execute, fetch_one, fetch_all
 from modules.think import ThinkModule
@@ -164,7 +164,7 @@ async def classify_error(error_id: str):
 
 
 @router.patch("/{error_id}/status")
-async def update_error_status(error_id: str, status: str):
+async def update_error_status(error_id: str, status: str = Query(...)):
     """Update error status."""
     valid_statuses = {"new", "acknowledged", "fix_generated", "fix_approved", "fix_deployed", "resolved", "ignored"}
     if status not in valid_statuses:

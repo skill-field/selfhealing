@@ -39,7 +39,8 @@ export function useSSE() {
     const eventTypes = [
       'error_detected', 'classification_done', 'fix_generated',
       'fix_approved', 'fix_rejected', 'deployment_status',
-      'feature_generated', 'heartbeat',
+      'feature_status', 'feature_generated', 'feature_approved',
+      'feature_rejected', 'heartbeat',
     ];
     for (const type of eventTypes) {
       es.addEventListener(type, (event: MessageEvent) => {

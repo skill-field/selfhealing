@@ -17,20 +17,26 @@ os.makedirs("data", exist_ok=True)
 port = int(os.environ.get("CDSW_APP_PORT", "8081"))
 print(f"[Sentinel] Starting (port={port}, root={PROJECT_ROOT})", flush=True)
 
+# Always pull latest code from git
 try:
-    # Fast dep check — only install if missing
-    try:
-        import fastapi
-        import uvicorn
-        print("[Sentinel] Dependencies already installed.", flush=True)
-    except ImportError:
-        print("[Sentinel] Installing dependencies...", flush=True)
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--quiet",
-             "--no-warn-script-location", "-r", "requirements.txt"],
-            stdout=sys.stdout, stderr=sys.stderr
-        )
-        print("[Sentinel] Dependencies installed.", flush=True)
+    print("[Sentinel] Pulling latest code from git...", flush=True)
+    subprocess.check_call(
+        ["git", "pull", "origin", "main", "--ff-only"],
+        cwd=PROJECT_ROOT, stdout=sys.stdout, stderr=sys.stderr
+    )
+    print("[Sentinel] Code updated.", flush=True)
+except Exception as e:
+    print(f"[Sentinel] Git pull skipped: {e}", flush=True)
+
+try:
+    # Always install deps (requirements.txt may have changed after git pull)
+    print("[Sentinel] Installing dependencies...", flush=True)
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "--quiet",
+         "--no-warn-script-location", "-r", "requirements.txt"],
+        stdout=sys.stdout, stderr=sys.stderr
+    )
+    print("[Sentinel] Dependencies installed.", flush=True)
 
     # Seed demo data if needed
     db_path = os.path.join(PROJECT_ROOT, "data", "sentinel.db")

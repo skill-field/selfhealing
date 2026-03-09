@@ -1,7 +1,11 @@
 """CML setup job — install deps and seed data. Run BEFORE starting the application."""
+import logging
 import subprocess
 import sys
 import os
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+logger = logging.getLogger("sentinel.setup")
 
 # Resolve project root (handles both app mode and Jupyter workbench)
 try:
@@ -12,32 +16,32 @@ except NameError:
 os.chdir(PROJECT_ROOT)
 os.makedirs("data", exist_ok=True)
 
-print(f"[Sentinel] Setup starting in {PROJECT_ROOT}", flush=True)
-print(f"[Sentinel] Python: {sys.version}", flush=True)
+logger.info(f"[Sentinel] Setup starting in {PROJECT_ROOT}")
+logger.info(f"[Sentinel] Python: {sys.version}")
 
 # Show current cml_app.py to verify git sync
-print("[Sentinel] === cml_app.py content ===", flush=True)
+logger.info("[Sentinel] === cml_app.py content ===")
 try:
     with open("cml_app.py") as f:
-        print(f.read(), flush=True)
+        logger.info(f.read())
 except Exception as e:
-    print(f"Cannot read cml_app.py: {e}", flush=True)
-print("[Sentinel] === end cml_app.py ===", flush=True)
+    logger.info(f"Cannot read cml_app.py: {e}")
+logger.info("[Sentinel] === end cml_app.py ===")
 
-print("[Sentinel] Installing Python dependencies...", flush=True)
+logger.info("[Sentinel] Installing Python dependencies...")
 subprocess.check_call(
     [sys.executable, "-m", "pip", "install", "--quiet",
      "--no-warn-script-location", "-r", "requirements.txt"],
     stdout=sys.stdout, stderr=sys.stderr
 )
-print("[Sentinel] Dependencies installed.", flush=True)
+logger.info("[Sentinel] Dependencies installed.")
 
 db_path = os.path.join(PROJECT_ROOT, "data", "sentinel.db")
 if not os.path.exists(db_path):
-    print("[Sentinel] Seeding demo data...", flush=True)
+    logger.info("[Sentinel] Seeding demo data...")
     subprocess.run([sys.executable, "scripts/seed_demo_data.py"], check=False)
-    print("[Sentinel] Seed done.", flush=True)
+    logger.info("[Sentinel] Seed done.")
 else:
-    print(f"[Sentinel] DB already exists at {db_path}", flush=True)
+    logger.info(f"[Sentinel] DB already exists at {db_path}")
 
-print("[Sentinel] Setup complete.", flush=True)
+logger.info("[Sentinel] Setup complete.")

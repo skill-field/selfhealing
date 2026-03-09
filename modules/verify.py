@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
+
+logger = logging.getLogger("sentinel.verify")
 
 from modules.github_client import GitHubClient
 from api.routes_events import broadcast_event

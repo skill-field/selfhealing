@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from uuid import uuid4
+
+logger = logging.getLogger("sentinel.evolve")
 
 from llm.client import AnthropicClient
 from llm.context_builder import ContextBuilder
@@ -101,7 +104,7 @@ class EvolveModule:
                     parts.append(f"### {f['path']}\n```\n{f['content']}\n```")
                 code_context_str = "\n\n".join(parts)
         except Exception as e:
-            print(f"[Evolve] Warning: Could not fetch code context: {e}", flush=True)
+            logger.warning("Could not fetch code context: %s", e)
 
         # 3. First call: Generate specification (Claude Sonnet)
         spec_user_prompt = FEATURE_SPEC_USER_TEMPLATE.format(

@@ -2,23 +2,22 @@
 
 import asyncio
 import json
+import logging
+import weakref
 from datetime import datetime, timezone
 from fastapi import APIRouter
 from sse_starlette.sse import EventSourceResponse
 
+logger = logging.getLogger("sentinel.sse")
+
 router = APIRouter(tags=["Events"])
 
-# List of asyncio.Queue instances, one per connected SSE client
-_client_queues: list[asyncio.Queue] = []
+# Use a set for O(1) add/remove and prevent unbounded growth
+_client_queues: set[asyncio.Queue] = set()
 
 
 async def broadcast_event(event_type: str, data: dict) -> None:
-    """Push an event to all connected SSE clients.
-
-    Args:
-        event_type: Event name (e.g., 'error_detected', 'classification_done').
-        data: Event payload dict.
-    """
+    """Push an event to all connected SSE clients."""
     payload = {
         "type": event_type,
         "data": data,
@@ -33,8 +32,8 @@ async def broadcast_event(event_type: str, data: dict) -> None:
 
     # Clean up any full/dead queues
     for q in disconnected:
-        if q in _client_queues:
-            _client_queues.remove(q)
+        _client_queues.discard(q)
+        logger.debug("Removed full SSE client queue (total: %d)", len(_client_queues))
 
 
 async def _event_generator(queue: asyncio.Queue):
@@ -42,7 +41,6 @@ async def _event_generator(queue: asyncio.Queue):
     try:
         while True:
             try:
-                # Wait for an event with a timeout (for heartbeat)
                 event = await asyncio.wait_for(queue.get(), timeout=15.0)
                 event_type = event.get("type", "message")
                 yield {
@@ -50,7 +48,6 @@ async def _event_generator(queue: asyncio.Queue):
                     "data": json.dumps(event),
                 }
             except asyncio.TimeoutError:
-                # Send heartbeat
                 heartbeat = {
                     "type": "heartbeat",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -59,15 +56,17 @@ async def _event_generator(queue: asyncio.Queue):
                     "event": "heartbeat",
                     "data": json.dumps(heartbeat),
                 }
+    except (asyncio.CancelledError, GeneratorExit):
+        pass
     finally:
-        # Remove queue when client disconnects
-        if queue in _client_queues:
-            _client_queues.remove(queue)
+        _client_queues.discard(queue)
+        logger.debug("SSE client disconnected (remaining: %d)", len(_client_queues))
 
 
 @router.get("/events/stream")
 async def event_stream():
     """SSE endpoint for real-time event streaming."""
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
-    _client_queues.append(queue)
+    _client_queues.add(queue)
+    logger.debug("SSE client connected (total: %d)", len(_client_queues))
     return EventSourceResponse(_event_generator(queue))

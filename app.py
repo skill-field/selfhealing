@@ -1,5 +1,6 @@
 """Skillfield Sentinel — AI Self-Healing Software Platform."""
 
+import logging
 import sys
 import os
 from contextlib import asynccontextmanager
@@ -12,8 +13,9 @@ from fastapi.staticfiles import StaticFiles
 # Ensure project root is on sys.path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import settings
+from config import settings, setup_logging
 from database import init_db
+from middleware import APIKeyMiddleware
 from api.routes_watch import router as watch_router
 from api.routes_think import router as think_router
 from api.routes_heal import router as heal_router
@@ -25,19 +27,24 @@ from api.routes_repos import router as repos_router
 from api.routes_cml import router as cml_router
 from api.routes_sources import router as sources_router
 
+setup_logging()
+logger = logging.getLogger("sentinel.app")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
-    # Startup: initialize the database
     await init_db()
-    print(f"[Sentinel] Database initialized at {settings.DB_PATH}")
-    print(f"[Sentinel] Running on port {settings.CDSW_APP_PORT}")
+    logger.info("Database initialized at %s", settings.DB_PATH)
+    logger.info("Running on port %d", settings.CDSW_APP_PORT)
     if settings.IS_CML:
-        print("[Sentinel] CML environment detected")
+        logger.info("CML environment detected")
+    if settings.SENTINEL_API_KEY:
+        logger.info("API key authentication enabled")
+    else:
+        logger.info("API key authentication disabled (set SENTINEL_API_KEY to enable)")
     yield
-    # Shutdown
-    print("[Sentinel] Shutting down")
+    logger.info("Shutting down")
 
 
 app = FastAPI(
@@ -47,7 +54,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware (allow all for hackathon)
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -56,7 +63,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── API Routes ──────────────────────────────────────────────────────────────
+# API key authentication middleware
+app.add_middleware(APIKeyMiddleware)
+
+# --- API Routes ---
 
 API_PREFIX = "/api/v1"
 
@@ -76,6 +86,7 @@ async def health_check():
         "version": "1.0.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "environment": "cml" if settings.IS_CML else "local",
+        "auth_enabled": bool(settings.SENTINEL_API_KEY),
     }
 
 
@@ -91,7 +102,7 @@ app.include_router(repos_router, prefix=API_PREFIX)
 app.include_router(cml_router, prefix=API_PREFIX)
 app.include_router(sources_router, prefix=API_PREFIX)
 
-# ─── Static Files & SPA Catch-All ───────────────────────────────────────────
+# --- Static Files & SPA Catch-All ---
 
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
@@ -103,7 +114,6 @@ class SPAStaticFiles(StaticFiles):
         try:
             return await super().get_response(path, scope)
         except Exception:
-            # File not found — serve index.html for SPA client-side routing
             return await super().get_response("index.html", scope)
 
 
@@ -111,7 +121,7 @@ if os.path.isdir(static_dir):
     app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="spa")
 
 
-# ─── Entry Point ─────────────────────────────────────────────────────────────
+# --- Entry Point ---
 
 if __name__ == "__main__":
     import uvicorn

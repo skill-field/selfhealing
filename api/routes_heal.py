@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Optional, Union
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from models import (
     FixGenerateRequest,

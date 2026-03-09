@@ -9,3 +9,4 @@ frontend/dist/
 
 data/sentinel.db-shm
 data/sentinel.db-wal
+data/models/

@@ -9,8 +9,18 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from config import settings
 
-# Derive a Fernet key from SENTINEL_SECRET (must be 32 url-safe base64 bytes)
-_raw = (settings.SENTINEL_SECRET or "default-sentinel-key").encode()
+# Derive a Fernet key from SENTINEL_SECRET
+_secret = settings.SENTINEL_SECRET
+if not _secret:
+    import warnings
+    warnings.warn(
+        "SENTINEL_SECRET is not set — using a random key. "
+        "Encrypted values will NOT survive restarts. Set SENTINEL_SECRET in .env.",
+        stacklevel=2,
+    )
+    _secret = base64.urlsafe_b64encode(os.urandom(32)).decode()
+
+_raw = _secret.encode()
 _key = base64.urlsafe_b64encode(hashlib.sha256(_raw).digest())
 _fernet = Fernet(_key)
 

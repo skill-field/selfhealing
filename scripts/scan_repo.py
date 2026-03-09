@@ -23,6 +23,11 @@ except NameError:
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
 
+import logging
+
+logger = logging.getLogger("sentinel.scanner")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+
 from config import settings
 from database import init_db, execute, fetch_one, fetch_all
 from llm.client import AnthropicClient
@@ -98,11 +103,11 @@ async def scan_single_repo(repo_row: dict, llm: AnthropicClient) -> dict:
     stats = {"files_scanned": 0, "total_issues": 0, "new_issues": 0}
 
     for file_path in scan_paths:
-        print(f"  [{repo_slug}] Scanning {file_path}...", flush=True)
+        logger.info(f"  [{repo_slug}] Scanning {file_path}...")
 
         content = await github.get_file_content(file_path)
         if content is None:
-            print(f"    -> Not found, skipping", flush=True)
+            logger.info(f"    -> Not found, skipping")
             continue
 
         stats["files_scanned"] += 1
@@ -120,15 +125,15 @@ async def scan_single_repo(repo_row: dict, llm: AnthropicClient) -> dict:
                 model="claude-sonnet-4-5",
             )
         except Exception as e:
-            print(f"    -> LLM error: {e}", flush=True)
+            logger.info(f"    -> LLM error: {e}")
             continue
 
         issues = result["data"].get("issues", [])
         if not issues:
-            print(f"    -> Clean", flush=True)
+            logger.info(f"    -> Clean")
             continue
 
-        print(f"    -> {len(issues)} issues found", flush=True)
+        logger.info(f"    -> {len(issues)} issues found")
 
         now = datetime.now(timezone.utc).isoformat()
         for issue in issues:
@@ -180,29 +185,29 @@ async def scan_single_repo(repo_row: dict, llm: AnthropicClient) -> dict:
 
 async def scan_all_repos():
     """Main entry — scan all active monitored repos."""
-    print("[Sentinel Scanner] Starting multi-repo scan", flush=True)
-    print(f"[Sentinel Scanner] Bedrock: {settings.USE_BEDROCK}, Region: {settings.AWS_REGION}", flush=True)
+    logger.info("[Sentinel Scanner] Starting multi-repo scan")
+    logger.info(f"[Sentinel Scanner] Bedrock: {settings.USE_BEDROCK}, Region: {settings.AWS_REGION}")
 
     await init_db()
 
     llm = AnthropicClient()
     if not llm.has_key:
-        print("[Sentinel Scanner] ERROR: No AI credentials. Cannot scan.", flush=True)
+        logger.info("[Sentinel Scanner] ERROR: No AI credentials. Cannot scan.")
         return
 
     repos = await fetch_all("SELECT * FROM monitored_repos WHERE is_active = 1")
     if not repos:
-        print("[Sentinel Scanner] No active repos configured.", flush=True)
+        logger.info("[Sentinel Scanner] No active repos configured.")
         return
 
-    print(f"[Sentinel Scanner] Found {len(repos)} active repo(s)", flush=True)
+    logger.info(f"[Sentinel Scanner] Found {len(repos)} active repo(s)")
 
     for repo in repos:
-        print(f"\n[Sentinel Scanner] === {repo['display_name']} ({repo['repo_slug']}) ===", flush=True)
+        logger.info(f"\n[Sentinel Scanner] === {repo['display_name']} ({repo['repo_slug']}) ===")
         stats = await scan_single_repo(repo, llm)
-        print(f"  Files: {stats['files_scanned']}, Issues: {stats['total_issues']}, New: {stats['new_issues']}", flush=True)
+        logger.info(f"  Files: {stats['files_scanned']}, Issues: {stats['total_issues']}, New: {stats['new_issues']}")
 
-    print("\n[Sentinel Scanner] All repos scanned.", flush=True)
+    logger.info("\n[Sentinel Scanner] All repos scanned.")
 
 
 if __name__ == "__main__":

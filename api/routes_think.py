@@ -166,11 +166,11 @@ async def classify_error(error_id: str):
 @router.patch("/{error_id}/status")
 async def update_error_status(error_id: str, status: str = Query(...)):
     """Update error status."""
-    valid_statuses = {"new", "acknowledged", "fix_generated", "fix_approved", "fix_deployed", "resolved", "ignored"}
-    if status not in valid_statuses:
+    from constants import VALID_ERROR_STATUSES
+    if status not in VALID_ERROR_STATUSES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid status '{status}'. Must be one of: {', '.join(sorted(valid_statuses))}",
+            detail=f"Invalid status '{status}'. Must be one of: {', '.join(sorted(VALID_ERROR_STATUSES))}",
         )
 
     row = await fetch_one("SELECT * FROM errors WHERE id = ?", (error_id,))

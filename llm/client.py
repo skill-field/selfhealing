@@ -1,8 +1,11 @@
 """Anthropic Claude API client — supports direct API and AWS Bedrock."""
 
 import json
+import logging
 import anthropic
 from config import settings
+
+logger = logging.getLogger("sentinel.llm")
 
 # Bedrock model ID mapping (Bedrock uses different model IDs)
 BEDROCK_MODEL_MAP = {
@@ -27,7 +30,7 @@ class AnthropicClient:
                 )
                 self.has_key = True
             except Exception as e:
-                print(f"[AnthropicClient] ERROR: Bedrock init failed: {e}", flush=True)
+                logger.error("Bedrock init failed: %s", e)
                 self.client = None
         else:
             api_key = settings.ANTHROPIC_API_KEY or None

@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from database import execute, fetch_one, fetch_all
+
+logger = logging.getLogger("sentinel.watch")
 
 
 class WatchModule:

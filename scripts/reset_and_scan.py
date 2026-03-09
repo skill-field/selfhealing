@@ -13,6 +13,11 @@ except NameError:
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
 
+import logging
+
+logger = logging.getLogger("sentinel.reset")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+
 from database import get_db, init_db
 
 
@@ -21,14 +26,14 @@ async def reset():
     await init_db()
     db = await get_db()
     try:
-        print("[Sentinel] Clearing all demo data...", flush=True)
+        logger.info("[Sentinel] Clearing all demo data...")
         await db.execute("DELETE FROM audit_log")
         await db.execute("DELETE FROM deployments")
         await db.execute("DELETE FROM fixes")
         await db.execute("DELETE FROM errors")
         await db.execute("DELETE FROM feature_requests")
         await db.commit()
-        print("[Sentinel] All tables cleared.", flush=True)
+        logger.info("[Sentinel] All tables cleared.")
     finally:
         await db.close()
 
@@ -36,11 +41,11 @@ async def reset():
 if __name__ == "__main__":
     asyncio.run(reset())
     # Now run the real scanner
-    print("[Sentinel] Running AI scanner with real data...", flush=True)
+    logger.info("[Sentinel] Running AI scanner with real data...")
     import subprocess
     result = subprocess.run(
         [sys.executable, "scripts/scan_repo.py"],
         cwd=PROJECT_ROOT,
         stdout=sys.stdout, stderr=sys.stderr
     )
-    print(f"[Sentinel] Done (exit code {result.returncode})", flush=True)
+    logger.info(f"[Sentinel] Done (exit code {result.returncode})")

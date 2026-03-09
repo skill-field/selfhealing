@@ -1,28 +1,36 @@
 name: Skillfield Sentinel
-description: AI Self-Healing Software Platform
+description: AI Self-Healing Software Platform — ML-powered error classification, Claude-driven fix generation, automated PR deployment
 author: Skillfield Pty Ltd
 specification_version: 1
-implementation_version: 1.0.0
+implementation_version: 2.0.0
 
 environment_variables:
   ANTHROPIC_API_KEY:
     default: ""
-    description: "Anthropic API key for Claude"
-    required: true
+    description: "Anthropic API key for Claude (fallback if Bedrock unavailable)"
   GITHUB_TOKEN:
     default: ""
-    description: "GitHub PAT for repo access"
+    description: "GitHub PAT for repo access and PR creation"
     required: true
   GITHUB_REPO:
     default: "koshaji/metrics"
     description: "Target GitHub repository"
   METRICS_APP_URL:
     default: "https://m8x.ai"
-    description: "Metrics app URL"
+    description: "Metrics app URL for monitoring"
   SENTINEL_SECRET:
     default: ""
-    description: "Webhook HMAC secret"
+    description: "Secret for encrypting stored credentials"
     required: true
+  SENTINEL_API_KEY:
+    default: ""
+    description: "API key for endpoint authentication (empty = no auth)"
+  USE_BEDROCK:
+    default: "true"
+    description: "Use AWS Bedrock for Claude API calls"
+  AWS_REGION:
+    default: "ap-southeast-2"
+    description: "AWS region for Bedrock"
 
 runtimes:
   - editor: PBJ Workbench

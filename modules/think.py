@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -9,6 +10,9 @@ from uuid import uuid4
 from database import execute, fetch_one
 from llm.client import AnthropicClient
 from llm.prompts import ROOT_CAUSE_SYSTEM_PROMPT, ROOT_CAUSE_USER_TEMPLATE
+from ml.classifier import ErrorClassifier
+
+logger = logging.getLogger("sentinel.think")
 
 
 class ThinkModule:
@@ -16,7 +20,12 @@ class ThinkModule:
 
     def __init__(self, anthropic_client: AnthropicClient | None = None):
         self.anthropic_client = anthropic_client or AnthropicClient()
+        self.ml_classifier = ErrorClassifier()
         self.rules = self._load_classification_rules()
+        if self.ml_classifier.is_trained:
+            logger.info("ML classifier loaded — using trained models for classification")
+        else:
+            logger.info("No trained ML model found — using rule-based classification")
 
     def _load_classification_rules(self) -> list[dict]:
         """Return rule-based classification patterns for the Metrics app.
@@ -114,40 +123,29 @@ class ThinkModule:
     def classify(
         self, error_message: str, error_type: str | None = None, stack_trace: str | None = None
     ) -> dict:
-        """Rule-based classification.
+        """Classify an error using ML model (preferred) or rule-based fallback.
 
         Returns:
-            {"category": str, "severity": str, "confidence": float}
+            {"category": str, "severity": str, "confidence": float, "model_type": str}
         """
-        # Combine all text for matching
-        combined = " ".join(filter(None, [error_type, error_message, stack_trace]))
-
-        best_match = None
-        best_match_count = 0
-
-        for rule in self.rules:
-            match_count = 0
-            for pattern in rule["patterns"]:
-                if pattern.search(combined):
-                    match_count += 1
-            if match_count > best_match_count:
-                best_match_count = match_count
-                best_match = rule
-
-        if best_match and best_match_count > 0:
-            # Confidence based on how many patterns matched
-            total_patterns = len(best_match["patterns"])
-            confidence = min(0.5 + (best_match_count / total_patterns) * 0.5, 0.95)
-            return {
-                "category": best_match["category"],
-                "severity": best_match["severity_hint"],
-                "confidence": round(confidence, 2),
-            }
-
+        # Try ML classifier first
+        ml_result = self.ml_classifier.predict(
+            error_message=error_message or "",
+            error_type=error_type or "",
+            stack_trace=stack_trace or "",
+        )
+        logger.debug(
+            "Classification result (%s): category=%s severity=%s confidence=%.2f",
+            ml_result.get("model_type", "unknown"),
+            ml_result["category"],
+            ml_result["severity"],
+            ml_result["confidence"],
+        )
         return {
-            "category": "unknown",
-            "severity": "medium",
-            "confidence": 0.3,
+            "category": ml_result["category"],
+            "severity": ml_result["severity"],
+            "confidence": ml_result["confidence"],
+            "model_type": ml_result.get("model_type", "rule_based"),
         }
 
     def determine_severity(self, error_message: str, category: str, occurrence_count: int) -> str:

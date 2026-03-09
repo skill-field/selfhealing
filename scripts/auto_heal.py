@@ -22,6 +22,11 @@ except NameError:
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
 
+import logging
+
+logger = logging.getLogger("sentinel.auto_heal")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+
 import crypto
 from config import settings
 from database import init_db, execute, fetch_one, fetch_all
@@ -38,14 +43,14 @@ from modules.github_client import GitHubClient
 
 async def auto_heal():
     """Main entry — analyze and heal all new errors."""
-    print("[Auto-Heal] Starting automated heal pipeline", flush=True)
-    print(f"[Auto-Heal] Bedrock: {settings.USE_BEDROCK}, Region: {settings.AWS_REGION}", flush=True)
+    logger.info("[Auto-Heal] Starting automated heal pipeline")
+    logger.info(f"[Auto-Heal] Bedrock: {settings.USE_BEDROCK}, Region: {settings.AWS_REGION}")
 
     await init_db()
 
     llm = AnthropicClient()
     if not llm.has_key:
-        print("[Auto-Heal] ERROR: No AI credentials. Cannot heal.", flush=True)
+        logger.info("[Auto-Heal] ERROR: No AI credentials. Cannot heal.")
         return
 
     # Get all new errors
@@ -57,10 +62,10 @@ async def auto_heal():
     )
 
     if not errors:
-        print("[Auto-Heal] No new errors to process.", flush=True)
+        logger.info("[Auto-Heal] No new errors to process.")
         return
 
-    print(f"[Auto-Heal] Found {len(errors)} new error(s) to process", flush=True)
+    logger.info(f"[Auto-Heal] Found {len(errors)} new error(s) to process")
 
     stats = {"analyzed": 0, "fixes_generated": 0, "skipped": 0}
 
@@ -70,8 +75,8 @@ async def auto_heal():
         repo_slug = error.get("repo_slug") or settings.GITHUB_REPO
         repo_token = crypto.decrypt(error.get("github_token") or "") or settings.GITHUB_TOKEN
 
-        print(f"\n[Auto-Heal] Processing: {error.get('error_message', '')[:80]}...", flush=True)
-        print(f"  Severity: {severity}, File: {error.get('affected_file', 'unknown')}", flush=True)
+        logger.info(f"\n[Auto-Heal] Processing: {error.get('error_message', '')[:80]}...")
+        logger.info(f"  Severity: {severity}, File: {error.get('affected_file', 'unknown')}")
 
         now = datetime.now(timezone.utc).isoformat()
 
@@ -122,16 +127,16 @@ async def auto_heal():
                 (now, error_id),
             )
             stats["analyzed"] += 1
-            print(f"  Root cause: {root_cause[:100]}...", flush=True)
+            logger.info(f"  Root cause: {root_cause[:100]}...")
 
         except Exception as e:
-            print(f"  Think failed: {e}", flush=True)
+            logger.info(f"  Think failed: {e}")
             stats["skipped"] += 1
             continue
 
         # Step 2: Heal — generate fix for high/critical errors
         if severity not in ("critical", "high"):
-            print(f"  Skipping fix generation (severity: {severity})", flush=True)
+            logger.info(f"  Skipping fix generation (severity: {severity})")
             continue
 
         try:
@@ -202,12 +207,12 @@ async def auto_heal():
             )
 
             stats["fixes_generated"] += 1
-            print(f"  Fix generated: {fix_data.get('title', 'untitled')[:80]}", flush=True)
+            logger.info(f"  Fix generated: {fix_data.get('title', 'untitled')[:80]}")
 
         except Exception as e:
-            print(f"  Heal failed: {e}", flush=True)
+            logger.info(f"  Heal failed: {e}")
 
-    print(f"\n[Auto-Heal] Complete. Analyzed: {stats['analyzed']}, Fixes: {stats['fixes_generated']}, Skipped: {stats['skipped']}", flush=True)
+    logger.info(f"\n[Auto-Heal] Complete. Analyzed: {stats['analyzed']}, Fixes: {stats['fixes_generated']}, Skipped: {stats['skipped']}")
 
 
 if __name__ == "__main__":

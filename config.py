@@ -1,6 +1,9 @@
 """Configuration for Skillfield Sentinel."""
 
+import logging
 import os
+import sys
+
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -28,6 +31,7 @@ class Settings(BaseSettings):
     # Application
     METRICS_APP_URL: str = "https://m8x.ai"
     SENTINEL_SECRET: str = ""
+    SENTINEL_API_KEY: str = ""  # API key for endpoint auth (empty = no auth)
     LOG_POLL_INTERVAL: int = 60
 
     # Database
@@ -46,3 +50,18 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def setup_logging() -> None:
+    """Configure structured logging for the application."""
+    log_level = logging.DEBUG if not settings.IS_CML else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stdout,
+    )
+    # Quiet down noisy libraries
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)

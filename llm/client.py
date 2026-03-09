@@ -6,10 +6,10 @@ from config import settings
 
 # Bedrock model ID mapping (Bedrock uses different model IDs)
 BEDROCK_MODEL_MAP = {
-    "claude-sonnet-4-5": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    "claude-sonnet-4-6": "us.anthropic.claude-sonnet-4-6",
+    "claude-sonnet-4-5": "us.anthropic.claude-sonnet-4-5-v2",
+    "claude-sonnet-4-6": "us.anthropic.claude-sonnet-4-6-v1",
     "claude-opus-4-6": "us.anthropic.claude-opus-4-6-v1",
-    "claude-haiku-4-5": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "claude-haiku-4-5": "us.anthropic.claude-haiku-4-5-v1",
 }
 
 
@@ -26,7 +26,8 @@ class AnthropicClient:
                     aws_region=settings.AWS_REGION,
                 )
                 self.has_key = True
-            except Exception:
+            except Exception as e:
+                print(f"[AnthropicClient] ERROR: Bedrock init failed: {e}", flush=True)
                 self.client = None
         else:
             api_key = settings.ANTHROPIC_API_KEY or None
@@ -45,19 +46,19 @@ class AnthropicClient:
         system_prompt: str,
         user_prompt: str,
         model: str = "claude-sonnet-4-5",
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
     ) -> dict:
         """Call Claude API and return parsed response.
 
-        If ANTHROPIC_API_KEY is not set, returns a mock/placeholder response.
+        If credentials are not configured, returns a mock/placeholder response.
         """
         if not self.has_key or self.client is None:
             return {
                 "content": json.dumps({
-                    "root_cause": "Unable to perform LLM analysis — ANTHROPIC_API_KEY not configured. This is a placeholder response.",
+                    "root_cause": "Unable to perform LLM analysis — AI credentials not configured. This is a placeholder response.",
                     "affected_component": "unknown",
-                    "impact": "Analysis unavailable without API key.",
-                    "fix_strategy": "Configure ANTHROPIC_API_KEY to enable AI-powered root cause analysis.",
+                    "impact": "Analysis unavailable without credentials.",
+                    "fix_strategy": "Configure USE_BEDROCK=true with AWS credentials, or set ANTHROPIC_API_KEY.",
                     "confidence": 0.0,
                 }),
                 "model": "mock",
@@ -71,6 +72,7 @@ class AnthropicClient:
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
+            timeout=120.0,
         )
 
         content = response.content[0].text if response.content else ""

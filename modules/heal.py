@@ -73,7 +73,7 @@ class HealModule:
         if guidance:
             user_prompt += f"\n\n**ADDITIONAL GUIDANCE FROM REVIEWER:**\n{guidance}"
 
-        # 5. Call Claude Opus
+        # 5. Call Claude for fix generation
         llm_result = await self.llm.generate_json(
             system_prompt=FIX_GENERATION_SYSTEM_PROMPT,
             user_prompt=user_prompt,
@@ -82,7 +82,11 @@ class HealModule:
 
         parsed = llm_result["data"]
 
-        # 6. Extract fields from parsed response
+        # 6. Check for parse errors (e.g. truncated response)
+        if parsed.get("parse_error"):
+            raise ValueError(f"LLM response could not be parsed as JSON: {parsed.get('raw_response', '')[:200]}")
+
+        # Extract fields from parsed response
         files_changed = parsed.get("files_changed", [])
         explanation = parsed.get("explanation", "")
         confidence = parsed.get("confidence", 0.0)

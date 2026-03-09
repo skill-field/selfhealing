@@ -22,10 +22,17 @@ except NameError:
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
 
+import crypto
 from config import settings
 from database import init_db, execute, fetch_one, fetch_all
 from llm.client import AnthropicClient
 from llm.context_builder import ContextBuilder
+from llm.prompts import (
+    ROOT_CAUSE_SYSTEM_PROMPT,
+    ROOT_CAUSE_USER_TEMPLATE,
+    FIX_GENERATION_SYSTEM_PROMPT,
+    FIX_GENERATION_USER_TEMPLATE,
+)
 from modules.github_client import GitHubClient
 
 
@@ -61,7 +68,6 @@ async def auto_heal():
         error_id = error["id"]
         severity = error.get("severity", "medium")
         repo_slug = error.get("repo_slug") or settings.GITHUB_REPO
-        import crypto
         repo_token = crypto.decrypt(error.get("github_token") or "") or settings.GITHUB_TOKEN
 
         print(f"\n[Auto-Heal] Processing: {error.get('error_message', '')[:80]}...", flush=True)
@@ -77,25 +83,31 @@ async def auto_heal():
             # Build context from source code
             github = GitHubClient(repo=repo_slug, token=repo_token)
             context_builder = ContextBuilder(github)
-            context_files = await context_builder.build_context(
-                error_message=error.get("error_message", ""),
-                stack_trace=error.get("stack_trace", ""),
-                affected_file=affected_file,
-            )
+            code_ctx = await context_builder.build_fix_context(error)
+
+            # Format code context for prompt
+            if code_ctx["files"]:
+                context_str = ""
+                for f in code_ctx["files"]:
+                    context_str += f"\n--- {f['path']} ({f['relevant_lines']}) ---\n"
+                    context_str += f["content"]
+                    context_str += "\n"
+            else:
+                context_str = "(No source code context available)"
 
             # Run root cause analysis via Claude
-            from llm.prompts import ROOT_CAUSE_PROMPT
-            rca_prompt = ROOT_CAUSE_PROMPT.format(
+            rca_prompt = ROOT_CAUSE_USER_TEMPLATE.format(
                 error_message=error.get("error_message", ""),
                 error_type=error.get("error_type", ""),
                 stack_trace=error.get("stack_trace", ""),
                 category=category,
                 severity=severity,
-                source_context=context_files,
+                occurrence_count=error.get("occurrence_count", 1),
+                first_seen=error.get("first_seen", "unknown"),
             )
 
             rca_result = await llm.generate_json(
-                system_prompt="You are a senior software engineer performing root cause analysis. Respond only with valid JSON.",
+                system_prompt=ROOT_CAUSE_SYSTEM_PROMPT,
                 user_prompt=rca_prompt,
                 model="claude-sonnet-4-5",
             )
@@ -123,18 +135,19 @@ async def auto_heal():
             continue
 
         try:
-            from llm.prompts import FIX_GENERATION_PROMPT
-            fix_prompt = FIX_GENERATION_PROMPT.format(
+            fix_prompt = FIX_GENERATION_USER_TEMPLATE.format(
                 error_message=error.get("error_message", ""),
                 error_type=error.get("error_type", ""),
                 stack_trace=error.get("stack_trace", ""),
                 root_cause=root_cause,
-                affected_file=affected_file,
-                source_context=context_files,
+                category=category,
+                severity=severity,
+                occurrence_count=error.get("occurrence_count", 1),
+                code_context=context_str,
             )
 
             fix_result = await llm.generate_json(
-                system_prompt="You are a senior software engineer generating production-ready fixes. Respond only with valid JSON.",
+                system_prompt=FIX_GENERATION_SYSTEM_PROMPT,
                 user_prompt=fix_prompt,
                 model="claude-sonnet-4-5",
             )
@@ -142,18 +155,34 @@ async def auto_heal():
             fix_data = fix_result.get("data", {})
             fix_id = uuid4().hex
 
+            # Extract fields matching heal.py schema
+            files_changed = fix_data.get("files_changed", [])
+            diff_parts = []
+            file_paths = []
+            for fc in files_changed:
+                file_paths.append(fc.get("path", "unknown"))
+                diff_parts.append(fc.get("diff", ""))
+            combined_diff = "\n".join(diff_parts)
+
+            explanation = fix_data.get("explanation", root_cause)
+            fix_confidence = fix_data.get("confidence", confidence)
+
             await execute(
                 """INSERT INTO fixes
-                   (id, error_id, title, description, diff, confidence,
-                    status, created_by, repo_id, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pending', 'auto_heal_job', ?, ?, ?)""",
+                   (id, error_id, diff, explanation, files_changed, confidence,
+                    model_used, prompt_tokens, completion_tokens, status,
+                    attempt_number, guidance, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, ?, ?, ?)""",
                 (
                     fix_id, error_id,
-                    fix_data.get("title", f"Fix for {error.get('error_type', 'error')}"),
-                    fix_data.get("description", root_cause),
-                    fix_data.get("diff", ""),
-                    confidence,
-                    error.get("repo_id"),
+                    combined_diff,
+                    explanation,
+                    json.dumps(file_paths),
+                    fix_confidence,
+                    fix_result.get("model", "unknown"),
+                    fix_result.get("prompt_tokens", 0),
+                    fix_result.get("completion_tokens", 0),
+                    None,
                     now, now,
                 ),
             )

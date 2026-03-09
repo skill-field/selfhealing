@@ -18,9 +18,9 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     GITHUB_TOKEN: str = ""
 
-    # AWS Bedrock (use instead of ANTHROPIC_API_KEY)
-    AWS_REGION: str = "us-east-1"
-    USE_BEDROCK: bool = False  # Set to true to use AWS Bedrock instead of Anthropic API
+    # AWS Bedrock (default LLM provider)
+    AWS_REGION: str = "ap-southeast-2"
+    USE_BEDROCK: bool = True  # Uses AWS Bedrock for Claude calls
 
     # GitHub
     GITHUB_REPO: str = "koshaji/metrics"

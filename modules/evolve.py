@@ -66,7 +66,7 @@ class EvolveModule:
         )
 
     async def generate_feature(self, feature_id: str) -> dict:
-        """Generate implementation for a feature request using Claude Opus."""
+        """Generate implementation for a feature request using Claude."""
         now = datetime.now(timezone.utc).isoformat()
 
         # 1. Fetch feature from database
@@ -100,8 +100,8 @@ class EvolveModule:
                 for f in context["files"]:
                     parts.append(f"### {f['path']}\n```\n{f['content']}\n```")
                 code_context_str = "\n\n".join(parts)
-        except Exception:
-            pass  # proceed without context if GitHub fetch fails
+        except Exception as e:
+            print(f"[Evolve] Warning: Could not fetch code context: {e}", flush=True)
 
         # 3. First call: Generate specification (Claude Sonnet)
         spec_user_prompt = FEATURE_SPEC_USER_TEMPLATE.format(

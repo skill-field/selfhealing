@@ -10,6 +10,13 @@ import subprocess
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(PROJECT_ROOT)
 
+print("[Sentinel] Installing dependencies...", flush=True)
+subprocess.check_call(
+    [sys.executable, "-m", "pip", "install", "--quiet",
+     "--no-warn-script-location", "-r", "requirements.txt"],
+    stdout=sys.stdout, stderr=sys.stderr
+)
+
 print("[Sentinel] Training ML classifier...", flush=True)
 result = subprocess.run(
     [sys.executable, "-m", "ml.train"],

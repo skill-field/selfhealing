@@ -15,12 +15,24 @@ import sys
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import subprocess
+
 try:
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 except NameError:
     PROJECT_ROOT = os.getcwd()
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
+
+# Install deps if needed (CML Jobs start with bare runtime)
+try:
+    import anthropic  # noqa: F401
+except ImportError:
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "--quiet",
+         "--no-warn-script-location", "-r", "requirements.txt"],
+        stdout=sys.stdout, stderr=sys.stderr
+    )
 
 import logging
 

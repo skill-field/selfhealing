@@ -274,8 +274,8 @@ function SlideArchitecture() {
   const layers = [
     { label: 'Frontend', items: ['React + TypeScript', 'Real-time Dashboard', 'SSE Streaming'], color: '#06b6d4', icon: Globe },
     { label: 'Backend', items: ['Python FastAPI', 'REST API', 'Background Workers'], color: '#a855f7', icon: Server },
-    { label: 'AI Layer', items: ['AWS Bedrock / Claude', 'Error Classification', 'Code Generation'], color: '#22c55e', icon: Brain },
-    { label: 'Infrastructure', items: ['Cloudera ML', 'PostgreSQL', 'GitHub Integration'], color: '#3b82f6', icon: Layers },
+    { label: 'AI Layer', items: ['AWS Bedrock / Claude', 'scikit-learn ML Classifier', 'Code Generation'], color: '#22c55e', icon: Brain },
+    { label: 'Infrastructure', items: ['Cloudera ML', 'SQLite + MLflow', 'GitHub Integration'], color: '#3b82f6', icon: Layers },
   ];
 
   return (
@@ -352,13 +352,13 @@ function SlideCloudera() {
     },
     {
       title: 'CML Models',
-      desc: 'Real-time error classification exposed as a REST endpoint for instant severity scoring',
+      desc: 'scikit-learn ML classifier (GradientBoosting + cross-validation) deployed as real-time REST endpoint for error classification',
       icon: Brain,
       color: '#22c55e',
     },
     {
       title: 'CML Experiments',
-      desc: 'MLflow tracking of every scan and heal cycle -- metrics, parameters, and artifacts versioned',
+      desc: 'MLflow tracking of model accuracy, fix success rates, MTTR, and token usage -- full experiment history versioned',
       icon: BarChart3,
       color: '#f59e0b',
     },
@@ -436,7 +436,7 @@ function SlideHowItWorks() {
       desc: 'CML Model endpoint classifies as "Critical / Database Error"',
       icon: Brain,
       color: '#a855f7',
-      detail: 'THINK module uses rule engine + Claude',
+      detail: 'THINK module uses ML classifier + Claude',
     },
     {
       step: '3',
@@ -542,9 +542,9 @@ function SlideWatch() {
 
 function SlideThink() {
   const features = [
-    'Hybrid: Rule engine (instant) + Claude Sonnet (deep analysis)',
+    'Hybrid: ML Classifier (scikit-learn) + Claude Sonnet (deep analysis)',
     'CML Model: Real-time classification REST endpoint',
-    '6 error categories, 4 severity levels',
+    '8 error categories, 4 severity levels, trained with cross-validation',
     'Root cause analysis in plain English',
     'Pattern recognition across error history',
   ];
